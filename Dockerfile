@@ -1,6 +1,8 @@
 # Use Node.js official image
 FROM node:20-alpine
 
+# Error: Cannot find module '/app/src/http/server.js'
+
 # Set the working directory
 WORKDIR /app
 
@@ -21,4 +23,4 @@ RUN npm ci --omit=dev
 EXPOSE 3000
 
 # Start the application
-CMD ["node", "src/http/server.js"]
+CMD ["node", "src/http/server.ts"]
