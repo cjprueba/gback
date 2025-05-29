@@ -1,10 +1,18 @@
-FROM python:3.9
+FROM node:18-alpine
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copiamos los archivos de dependencias
+COPY package*.json ./
 
+# Instalamos las dependencias
+RUN npm install
+
+# Copiamos el resto del código
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Exponemos el puerto 3000 que es el que usamos en la aplicación
+EXPOSE 3000
+
+# Iniciamos la aplicación
+CMD ["node", "index.js"]

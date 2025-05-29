@@ -1,0 +1,12 @@
+{
+  "name": "gback",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "fastify": "^4.24.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  }
+}
