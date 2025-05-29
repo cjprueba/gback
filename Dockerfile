@@ -12,7 +12,7 @@ COPY src ./src
 RUN npm install -g npm@11.4.1
 
 # Install workspace dependencies
-RUN npm install -ws
+RUN npm install
 
 # Install production dependencies only
 RUN npm ci --omit=dev
