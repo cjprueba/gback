@@ -7,10 +7,15 @@ WORKDIR /app
 # Copy package files and install dependencies
 COPY package*.json ./
 COPY src ./src
-RUN npm install
+
+# Install npm globally to latest version
+RUN npm install -g npm@11.4.1
+
+# Install dependencies including workspaces
+RUN npm install --include=workspace
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm ci --only=production --include=workspace
 
 # Expose the port Fastify runs on
 EXPOSE 3000
