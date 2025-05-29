@@ -11,11 +11,11 @@ COPY src ./src
 # Install npm globally to latest version
 RUN npm install -g npm@11.4.1
 
-# Install dependencies including workspaces
-RUN npm install --include=workspace
+# Install workspace dependencies
+RUN npm install -ws
 
 # Install production dependencies only
-RUN npm ci --only=production --include=workspace
+RUN npm ci --omit=dev
 
 # Expose the port Fastify runs on
 EXPOSE 3000
