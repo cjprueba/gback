@@ -6,13 +6,14 @@ WORKDIR /app
 
 # Copy package files and install dependencies
 COPY package*.json ./
+COPY src ./src
 RUN npm install
 
-# Copy the rest of the application
-COPY . .
+# Install production dependencies only
+RUN npm ci --only=production
 
 # Expose the port Fastify runs on
 EXPOSE 3000
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["node", "src/http/server.js"]
