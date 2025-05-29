@@ -9,9 +9,15 @@ fastify.get('/', async (request, reply) => {
   return { message: 'Hello from Fastify in Docker!' };
 });
 
-// Nueva ruta para subir archivos
+// Nueva ruta para subir archivos (modificada)
 fastify.post('/upload', async (request, reply) => {
-  const data = await request.file();
+  const data = await request.file({
+    limits: {
+      fileSize: 10 * 1024 * 1024 // Límite de 10MB
+    },
+    allow: ['application/pdf', 'image/*'] // Tipos MIME permitidos
+  });
+  
   const uploadDir = path.join(__dirname, 'uploads');
   
   if (!fs.existsSync(uploadDir)) {
