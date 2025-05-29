@@ -1,18 +1,18 @@
-FROM node:18-alpine
+# Use Node.js official image
+FROM node:20-alpine
 
+# Set the working directory
 WORKDIR /app
 
-# Copiamos los archivos de dependencias
+# Copy package files and install dependencies
 COPY package*.json ./
-
-# Instalamos las dependencias
 RUN npm install
 
-# Copiamos el resto del código
+# Copy the rest of the application
 COPY . .
 
-# Exponemos el puerto 3000 que es el que usamos en la aplicación
+# Expose the port Fastify runs on
 EXPOSE 3000
 
-# Iniciamos la aplicación
-CMD ["node", "index.js"]
+# Start the application
+CMD ["npm", "start"]

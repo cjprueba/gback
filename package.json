@@ -1,12 +1,11 @@
 {
-  "name": "gback",
+  "name": "fastify-docker-app",
   "version": "1.0.0",
-  "main": "index.js",
-  "dependencies": {
-    "fastify": "^4.24.0"
-  },
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js"
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.0.0"
   }
 }

@@ -1,17 +1,16 @@
-const fastify = require('fastify')({ logger: true })
+const fastify = require('fastify')({ logger: true });
 
-// Definimos nuestra ruta
 fastify.get('/', async (request, reply) => {
-  return { Hello: 'World' }
-})
+  return { message: 'Hello from Fastify in Docker!' };
+});
 
-// Ejecutamos el servidor
 const start = async () => {
   try {
-    await fastify.listen({ port: 3000 })
+    await fastify.listen({ port: 3000, host: '0.0.0.0' });
   } catch (err) {
-    fastify.log.error(err)
-    process.exit(1)
+    fastify.log.error(err);
+    process.exit(1);
   }
-}
-start()
+};
+
+start();
