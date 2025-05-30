@@ -13,6 +13,7 @@ import { errorHandler } from './error-handler';
 import { testRoute } from './routes/auth/test-get-route';
 import { testGetDataRoute } from './routes/auth/test-getData-route';
 import { testPostRoute } from './routes/auth/test-post-route';
+import { helloWorld } from './routes/auth/hello-world';
 
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
@@ -53,8 +54,9 @@ app.register(fastifyCors);
 app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
+app.register(helloWorld);
 
 
-app.listen({ port: 3000 }).then(() => {
+app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
 });
