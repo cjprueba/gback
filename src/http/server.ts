@@ -3,6 +3,7 @@ import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyJwt from '@fastify/jwt';
 import fastifyCors from '@fastify/cors';
+import fastifyMultipart  from '@fastify/multipart';
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -13,7 +14,7 @@ import { errorHandler } from './error-handler';
 import { testRoute } from './routes/auth/test-get-route';
 import { testGetDataRoute } from './routes/auth/test-getData-route';
 import { testPostRoute } from './routes/auth/test-post-route';
-import { helloWorld } from './routes/auth/hello-world';
+import { uploadFile } from './routes/resources/upload-file';
 
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
@@ -50,11 +51,12 @@ app.register(fastifySwaggerUi, {
 //   secret: env.JWT_SECRET,
 // });
 
+
 app.register(fastifyCors);
 app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
-app.register(helloWorld);
+app.register(uploadFile);
 
 
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
