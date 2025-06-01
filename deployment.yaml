@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gestor-backend
+  labels:
+    app: gestor-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gestor-backend
+  template:
+    metadata:
+      labels:
+        app: gestor-backend
+    spec:
+      containers:
+      - name: gestor-backend
+        image: gestor-backend:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        env:
+        - name: PORT
+          value: "3000"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gestor-backend
+spec:
+  selector:
+    app: gestor-backend
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gestor-backend
+spec:
+  to:
+    kind: Service
+    name: gestor-backend
+  port:
+    targetPort: 3000
