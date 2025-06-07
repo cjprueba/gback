@@ -15,6 +15,16 @@ import { testRoute } from './routes/auth/test-get-route';
 import { testGetDataRoute } from './routes/auth/test-getData-route';
 import { testPostRoute } from './routes/auth/test-post-route';
 import { uploadFile } from './routes/resources/upload-file';
+import { createProfile } from './routes/user/create-profile';
+
+// division
+import { createDivision } from './routes/division/create';
+
+// departamento
+import { createDepartamento } from './routes/departamento/create';
+
+// unidad
+import { createUnidad } from './routes/unidad/create';
 
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
@@ -57,7 +67,10 @@ app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
 app.register(uploadFile);
-
+app.register(createProfile);
+app.register(createDivision);
+app.register(createDepartamento);
+app.register(createUnidad);
 
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
