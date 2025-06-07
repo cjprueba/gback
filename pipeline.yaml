@@ -1,0 +1,77 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: gestor-backend-pipeline
+spec:
+  workspaces:
+    - name: shared-workspace
+  params:
+    - name: git-url
+      type: string
+      description: URL del repositorio git
+    - name: git-revision
+      type: string
+      description: Revisión git a construir
+      default: main
+    - name: IMAGE
+      type: string
+      description: Nombre de la imagen a construir
+  tasks:
+    - name: fetch-repository
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+
+    - name: build-image
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: $(params.IMAGE)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      runAfter:
+        - fetch-repository
+
+    - name: deploy-app
+      taskRef:
+        name: openshift-client
+        kind: ClusterTask
+      params:
+        - name: SCRIPT
+          value: |
+            oc apply -f deployment.yaml
+      runAfter:
+        - build-image
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: gestor-backend-pipeline-run
+spec:
+  pipelineRef:
+    name: gestor-backend-pipeline
+  params:
+    - name: git-url
+      value: "https://github.com/cjprueba/gback.git"
+    - name: IMAGE
+      value: "image-registry.openshift-image-registry.svc:5000/$(context.pipelineRun.namespace)/gestor-backend:latest"
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

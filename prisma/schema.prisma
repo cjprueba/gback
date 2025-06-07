@@ -1,0 +1,329 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// oc port-forward pod/postgresql-test-1-knqg9 5432:5432 -n lfuentes-dev
+// oc port-forward svc/postgresql-test 15432:5432 -n lfuentes-dev
+
+/*
+Eliminar y volver a cargar base de datos 
+# eliminar migrations
+# npx prisma migrate reset
+*/
+// para correr prisma - npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // o el proveedor que uses (mysql, sqlite, sqlserver, mongodb, etc.)
+  url      = env("DATABASE_URL")
+}
+
+model Perfiles {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @db.VarChar(50)
+  descripcion String?   @db.Text
+  usuarios    Usuarios[]
+
+  @@map("perfiles")
+}
+
+model Divisiones {
+  id            Int             @id @default(autoincrement())
+  nombre        String          @db.VarChar(100)
+  descripcion   String?         @db.Text
+  activa        Boolean         @default(true)
+  created_at    DateTime        @default(now())
+  usuarios      Usuarios[]
+  departamentos Departamentos[]
+  proyectos     Proyectos[]
+
+  @@map("divisiones")
+}
+
+model Departamentos {
+  id          Int         @id @default(autoincrement())
+  nombre      String      @db.VarChar(100)
+  descripcion String?     @db.Text
+  division_id Int
+  activo      Boolean     @default(true)
+  created_at  DateTime    @default(now())
+  division    Divisiones  @relation(fields: [division_id], references: [id])
+  usuarios    Usuarios[]
+  unidades    Unidades[]
+  proyectos   Proyectos[]
+
+  @@map("departamentos")
+}
+
+model Unidades {
+  id              Int           @id @default(autoincrement())
+  nombre          String        @db.VarChar(100)
+  descripcion     String?       @db.Text
+  departamento_id Int
+  activa          Boolean       @default(true)
+  created_at      DateTime      @default(now())
+  departamento    Departamentos @relation(fields: [departamento_id], references: [id])
+  usuarios        Usuarios[]
+  proyectos       Proyectos[]
+
+  @@map("unidades")
+}
+
+model Usuarios {
+  id                   Int                    @id @default(autoincrement())
+  username             String                 @unique @db.VarChar(50)
+  nombre_completo      String?                @db.VarChar(100)
+  correo_electronico   String?                @db.VarChar(100)
+  perfil_id            Int
+  division_id          Int?
+  departamento_id      Int?
+  unidad_id            Int?
+  activo               Boolean                @default(true)
+  created_at           DateTime               @default(now())
+  perfil               Perfiles               @relation(fields: [perfil_id], references: [id])
+  division             Divisiones?            @relation(fields: [division_id], references: [id])
+  departamento         Departamentos?         @relation(fields: [departamento_id], references: [id])
+  unidad               Unidades?              @relation(fields: [unidad_id], references: [id])
+  proyectos_creados    Proyectos[]            @relation("ProyectoCreador")
+  documentos_creados   Documentos[]           @relation("DocumentoCreador")
+  documentos_subidos   Documentos[]           @relation("DocumentoSubido")
+  inspector_fiscal     InspectorFiscal[]
+  archivo_historial    ArchivoHistorial[]
+  auditorias           Auditorias[]
+
+  @@map("usuarios")
+}
+
+model Proyectos {
+  id                    Int                     @id @default(autoincrement())
+  codigo_proyecto       String                  @unique @db.VarChar(50)
+  nombre                String                  @db.VarChar(255)
+  estado                String?                 @db.VarChar(50)
+  fecha_inicio          DateTime?               @db.Date
+  fecha_termino         DateTime?               @db.Date
+  division_id           Int?
+  departamento_id       Int?
+  unidad_id             Int?
+  creado_por            Int
+  created_at            DateTime                @default(now())
+  division              Divisiones?             @relation(fields: [division_id], references: [id])
+  departamento          Departamentos?          @relation(fields: [departamento_id], references: [id])
+  unidad                Unidades?               @relation(fields: [unidad_id], references: [id])
+  creador               Usuarios                @relation("ProyectoCreador", fields: [creado_por], references: [id])
+  contratos             Contratos[]
+  concesiones           Concesiones[]
+  externos_involucrados ExternosInvolucrados[]
+  fechas_clave          FechasClave[]
+  inspector_fiscal      InspectorFiscal[]
+  documentos            Documentos[]
+
+  @@map("proyectos")
+}
+
+model Contratos {
+  id                   Int                    @id @default(autoincrement())
+  codigo_contrato      String                 @unique @db.VarChar(50)
+  proyecto_id          Int
+  descripcion          String?                @db.Text
+  fecha_firma          DateTime?              @db.Date
+  fecha_vencimiento    DateTime?              @db.Date
+  monto                Decimal?               @db.Decimal(18, 2)
+  estado               String?                @db.VarChar(30)
+  created_at           DateTime               @default(now())
+  proyecto             Proyectos              @relation(fields: [proyecto_id], references: [id])
+  fechas_clave         FechasClave[]
+  hitos_contractuales  HitosContractuales[]
+  documentos           Documentos[]
+
+  @@map("contratos")
+}
+
+model Concesiones {
+  id                  Int                   @id @default(autoincrement())
+  codigo_concesion    String                @unique @db.VarChar(50)
+  proyecto_id         Int
+  nombre              String                @db.VarChar(255)
+  descripcion         String?               @db.Text
+  estado              String?               @db.VarChar(30)
+  fecha_inicio        DateTime?             @db.Date
+  fecha_termino       DateTime?             @db.Date
+  tipo_obra           String?               @db.VarChar(100) // infraestructura vial, aeroportuaria, penitenciaria, etc.
+  ubicacion           String?               @db.VarChar(255)
+  created_at          DateTime              @default(now())
+  proyecto            Proyectos             @relation(fields: [proyecto_id], references: [id])
+  obras_concesionadas ObrasConcesionadas[]
+  fechas_clave        FechasClave[]
+
+  @@map("concesiones")
+}
+
+model ObrasConcesionadas {
+  id            Int         @id @default(autoincrement())
+  concesion_id  Int
+  nombre        String      @db.VarChar(255)
+  descripcion   String?     @db.Text
+  tipo_obra     String?     @db.VarChar(100)
+  estado        String?     @db.VarChar(30)
+  fecha_inicio  DateTime?   @db.Date
+  fecha_termino DateTime?   @db.Date
+  ubicacion     String?     @db.VarChar(255)
+  presupuesto   Decimal?    @db.Decimal(18, 2)
+  concesion     Concesiones @relation(fields: [concesion_id], references: [id])
+
+  @@map("obras_concesionadas")
+}
+
+model Empresas {
+  id                    Int                     @id @default(autoincrement())
+  rut                   String                  @unique @db.VarChar(12)
+  razon_social          String                  @db.VarChar(255)
+  nombre_fantasia       String?                 @db.VarChar(255)
+  direccion             String?                 @db.Text
+  telefono              String?                 @db.VarChar(20)
+  email                 String?                 @db.VarChar(100)
+  representante_legal   String?                 @db.VarChar(255)
+  activa                Boolean                 @default(true)
+  created_at            DateTime                @default(now())
+  externos_involucrados ExternosInvolucrados[]
+
+  @@map("empresas")
+}
+
+model Asesores {
+  id                    Int                     @id @default(autoincrement())
+  rut                   String                  @unique @db.VarChar(12)
+  nombre                String                  @db.VarChar(100)
+  apellido              String                  @db.VarChar(100)
+  especialidad          String?                 @db.VarChar(100)
+  telefono              String?                 @db.VarChar(20)
+  email                 String?                 @db.VarChar(100)
+  activo                Boolean                 @default(true)
+  created_at            DateTime                @default(now())
+  externos_involucrados ExternosInvolucrados[]
+
+  @@map("asesores")
+}
+
+model ExternosInvolucrados {
+  id                  Int        @id @default(autoincrement())
+  proyecto_id         Int
+  empresa_id          Int?
+  asesor_id           Int?
+  tipo_participacion  String?    @db.VarChar(50) // Contratista, Consultor, Asesor, etc.
+  rol                 String?    @db.VarChar(100)
+  fecha_inicio        DateTime?  @db.Date
+  fecha_termino       DateTime?  @db.Date
+  activo              Boolean    @default(true)
+  proyecto            Proyectos  @relation(fields: [proyecto_id], references: [id])
+  empresa             Empresas?  @relation(fields: [empresa_id], references: [id])
+  asesor              Asesores?  @relation(fields: [asesor_id], references: [id])
+
+  @@map("externos_involucrados")
+}
+
+model FechasClave {
+  id                Int         @id @default(autoincrement())
+  proyecto_id       Int?
+  contrato_id       Int?
+  concesion_id      Int?
+  tipo_fecha        String?     @db.VarChar(50) // licitacion, adjudicacion, inicio_concesion, puesta_servicio
+  fecha_programada  DateTime?   @db.Date
+  fecha_real        DateTime?   @db.Date
+  descripcion       String?     @db.Text
+  es_hito_critico   Boolean     @default(false)
+  proyecto          Proyectos?  @relation(fields: [proyecto_id], references: [id])
+  contrato          Contratos?  @relation(fields: [contrato_id], references: [id])
+  concesion         Concesiones? @relation(fields: [concesion_id], references: [id])
+
+  @@map("fechas_clave")
+}
+
+model InspectorFiscal {
+  id                Int       @id @default(autoincrement())
+  proyecto_id       Int
+  usuario_id        Int
+  fecha_asignacion  DateTime? @db.Date
+  fecha_termino     DateTime? @db.Date
+  activo            Boolean   @default(true)
+  observaciones     String?   @db.Text
+  proyecto          Proyectos @relation(fields: [proyecto_id], references: [id])
+  usuario           Usuarios  @relation(fields: [usuario_id], references: [id])
+
+  @@map("inspector_fiscal")
+}
+
+model HitosContractuales {
+  id                   Int       @id @default(autoincrement())
+  contrato_id          Int
+  descripcion          String?   @db.Text
+  fecha_comprometida   DateTime? @db.Date
+  fecha_cumplimiento   DateTime? @db.Date
+  cumplido             Boolean   @default(false)
+  alerta_30            Boolean   @default(false)
+  alerta_15            Boolean   @default(false)
+  alerta_5             Boolean   @default(false)
+  contrato             Contratos @relation(fields: [contrato_id], references: [id])
+
+  @@map("hitos_contractuales")
+}
+
+model Documentos {
+  id                         String             @id @default(cuid())
+  nombre_archivo             String             @db.VarChar(255)
+  extension                  String?            @db.VarChar(10)
+  tamano                     BigInt?
+  tipo_mime                  String?            @db.VarChar(100)
+  fecha_creacion             DateTime           @default(now())
+  usuario_creador            Int
+  descripcion                String?            @db.Text
+  categoria                  String?            @db.VarChar(100)
+  estado                     String?            @db.VarChar(30) // Activo, Inactivo, Eliminado
+  version                    String?            @db.VarChar(10)
+  archivo_relacionado        String?
+  ruta_storage               String?            @db.Text
+  hash_integridad            String?            @db.VarChar(255)
+  etiquetas                  String[]
+  fecha_ultima_actualizacion DateTime           @default(now())
+  contrato_id                Int?
+  proyecto_id                Int?
+  subido_por                 Int
+  metadata                   Json?
+  creador                    Usuarios           @relation("DocumentoCreador", fields: [usuario_creador], references: [id])
+  subidor                    Usuarios           @relation("DocumentoSubido", fields: [subido_por], references: [id])
+  contrato                   Contratos?         @relation(fields: [contrato_id], references: [id])
+  proyecto                   Proyectos?         @relation(fields: [proyecto_id], references: [id])
+  archivo_padre              Documentos?        @relation("DocumentoRelacionado", fields: [archivo_relacionado], references: [id])
+  archivos_relacionados      Documentos[]       @relation("DocumentoRelacionado")
+  historial                  ArchivoHistorial[]
+
+  @@map("documentos")
+}
+
+model ArchivoHistorial {
+  id               Int        @id @default(autoincrement())
+  archivo_id       String
+  usuario_id       Int
+  accion           String?    @db.VarChar(50) // Creación, Actualización, Eliminación, Cambio de versión
+  descripcion      String?    @db.Text
+  fecha            DateTime   @default(now())
+  version_anterior String?    @db.Text
+  version_nueva    String?    @db.Text
+  archivo          Documentos @relation(fields: [archivo_id], references: [id])
+  usuario          Usuarios   @relation(fields: [usuario_id], references: [id])
+
+  @@map("archivo_historial")
+}
+
+model Auditorias {
+  id          Int      @id @default(autoincrement())
+  usuario_id  Int
+  accion      String?  @db.VarChar(100)
+  entidad     String?  @db.VarChar(50)
+  entidad_id  Int?
+  descripcion String?  @db.Text
+  fecha       DateTime @default(now())
+  usuario     Usuarios @relation(fields: [usuario_id], references: [id])
+
+  @@map("auditorias")
+}
