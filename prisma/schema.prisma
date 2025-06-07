@@ -17,7 +17,7 @@ generator client {
 
 datasource db {
   provider = "postgresql" // o el proveedor que uses (mysql, sqlite, sqlserver, mongodb, etc.)
-  url      = env("DATABASE_URL", "https://gback-git-lfuentes-dev.apps.rm2.thpm.p1.openshiftapps.com")
+  url      = env("DATABASE_URL")
 }
 
 model Perfiles {
