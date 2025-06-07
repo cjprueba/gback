@@ -76,9 +76,8 @@ model Unidades {
 
 model Usuarios {
   id                   Int                    @id @default(autoincrement())
-  username             String                 @unique @db.VarChar(50)
-  nombre_completo      String?                @db.VarChar(100)
-  correo_electronico   String?                @db.VarChar(100)
+  nombre_completo      String                @db.VarChar(100)
+  correo_electronico   String                @unique @db.VarChar(50)
   perfil_id            Int
   division_id          Int?
   departamento_id      Int?

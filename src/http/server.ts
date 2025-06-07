@@ -26,6 +26,9 @@ import { createDepartamento } from './routes/departamento/create';
 // unidad
 import { createUnidad } from './routes/unidad/create';
 
+// user
+import { registerUser } from './routes/user/register';
+
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
 app.setSerializerCompiler(serializerCompiler);
@@ -71,6 +74,7 @@ app.register(createProfile);
 app.register(createDivision);
 app.register(createDepartamento);
 app.register(createUnidad);
+app.register(registerUser);
 
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
