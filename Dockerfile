@@ -9,6 +9,9 @@ COPY package*.json ./
 
 COPY tsconfig.json ./
 COPY src ./src
+
+COPY prisma ./prisma
+
 RUN npm install
 
 # Expose the port Fastify runs on
