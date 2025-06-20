@@ -20,57 +20,47 @@ console.log(process.env.MINIO_ENDPOINT)
 
 const BUCKET_NAME = process.env.MINIO_BUCKET;
 
-export async function uploadFile(app: FastifyInstance) {
-  // Register multipart plugin if not already registered
-  await app.register(import('@fastify/multipart'), {
-    limits: {
-      fileSize: 10 * 1024 * 1024,
-      files: 10
-    }
-  });
+export async function getFiles(app: FastifyInstance) {
 
+
+  // Add new route to list files
   app
     .withTypeProvider<ZodTypeProvider>()
-    .post(
-      '/upload',
+    .get(
+      '/files',
       {
         schema: {
           tags: ['File Upload'],
-          summary: 'Upload a file',
-          consumes: ['multipart/form-data'],
+          summary: 'List all files in bucket',
           response: {
             200: z.object({
-              message: z.string(),
-              filename: z.string()
+              files: z.array(z.object({
+                name: z.string(),
+                size: z.number(),
+                lastModified: z.string()
+              }))
             }),
           },
         },
       },
       async (request, reply) => {
         try {
-          const data = await request.file();
-
-          if (!data) {
-            throw new BadRequestError('No file uploaded');
+          const stream = minioClient.listObjects(BUCKET_NAME);
+          const files = [];
+          
+          for await (const item of stream) {
+            const stat = await minioClient.statObject(BUCKET_NAME, item.name);
+            files.push({
+              name: item.name,
+              size: stat.size,
+              lastModified: stat.lastModified.toISOString()
+            });
           }
           
-          //const buffer = await data.toBuffer();
-          const buffer = data.file;
-
-
-          // Upload to MinIO
-          await minioClient.putObject(BUCKET_NAME,  data.filename, buffer);
-          
-          return reply.send({ 
-            message: 'File uploaded successfully',
-            filename: data.filename
-          });
+          return reply.send({ files });
         } catch (error) {
           console.error(error);
-          if (error instanceof BadRequestError) {
-            throw error;
-          }
-          throw new BadRequestError('File upload failed');
+          throw new BadRequestError('Failed to list files');
         }
       }
     );

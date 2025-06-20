@@ -1,0 +1,7 @@
+# Run docker 
+docker build . -t fastify-try    
+docker run -p 3000:3000 fastify-try
+
+oc create secret generic my-app-secrets --from-env-file=.env
+oc set env deployment/gback-git --from=secret/my-app-secrets
+oc set env deployment/gback-git DATABASE_URL=postgresql://admin:admin@postgresql-test:5432/postgres

@@ -1,19 +1,3 @@
-/*
-  Warnings:
-
-  - You are about to drop the `Post` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `User` table. If the table is not empty, all the data it contains will be lost.
-
-*/
--- DropForeignKey
-ALTER TABLE "Post" DROP CONSTRAINT "Post_authorId_fkey";
-
--- DropTable
-DROP TABLE "Post";
-
--- DropTable
-DROP TABLE "User";
-
 -- CreateTable
 CREATE TABLE "perfiles" (
     "id" SERIAL NOT NULL,
@@ -51,7 +35,8 @@ CREATE TABLE "unidades" (
     "id" SERIAL NOT NULL,
     "nombre" VARCHAR(100) NOT NULL,
     "descripcion" TEXT,
-    "departamento_id" INTEGER NOT NULL,
+    "departamento_id" INTEGER,
+    "division_id" INTEGER,
     "activa" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -61,9 +46,8 @@ CREATE TABLE "unidades" (
 -- CreateTable
 CREATE TABLE "usuarios" (
     "id" SERIAL NOT NULL,
-    "username" VARCHAR(50) NOT NULL,
-    "nombre_completo" VARCHAR(100),
-    "correo_electronico" VARCHAR(100),
+    "nombre_completo" VARCHAR(100) NOT NULL,
+    "correo_electronico" VARCHAR(50) NOT NULL,
     "perfil_id" INTEGER NOT NULL,
     "division_id" INTEGER,
     "departamento_id" INTEGER,
@@ -282,7 +266,7 @@ CREATE TABLE "auditorias" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "usuarios_username_key" ON "usuarios"("username");
+CREATE UNIQUE INDEX "usuarios_correo_electronico_key" ON "usuarios"("correo_electronico");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "proyectos_codigo_proyecto_key" ON "proyectos"("codigo_proyecto");
@@ -303,7 +287,10 @@ CREATE UNIQUE INDEX "asesores_rut_key" ON "asesores"("rut");
 ALTER TABLE "departamentos" ADD CONSTRAINT "departamentos_division_id_fkey" FOREIGN KEY ("division_id") REFERENCES "divisiones"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "unidades" ADD CONSTRAINT "unidades_departamento_id_fkey" FOREIGN KEY ("departamento_id") REFERENCES "departamentos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "unidades" ADD CONSTRAINT "unidades_departamento_id_fkey" FOREIGN KEY ("departamento_id") REFERENCES "departamentos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "unidades" ADD CONSTRAINT "unidades_division_id_fkey" FOREIGN KEY ("division_id") REFERENCES "divisiones"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "usuarios" ADD CONSTRAINT "usuarios_perfil_id_fkey" FOREIGN KEY ("perfil_id") REFERENCES "perfiles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -14,7 +14,7 @@ import { errorHandler } from './error-handler';
 import { testRoute } from './routes/auth/test-get-route';
 import { testGetDataRoute } from './routes/auth/test-getData-route';
 import { testPostRoute } from './routes/auth/test-post-route';
-import { uploadFile } from './routes/resources/upload-file';
+
 import { createProfile } from './routes/user/create-profile';
 
 // division
@@ -28,6 +28,10 @@ import { createUnidad } from './routes/unidad/create';
 
 // user
 import { registerUser } from './routes/user/register';
+
+// resources
+import { uploadFile } from './routes/resources/upload-file';
+import { getFiles } from './routes/resources/get-files';
 
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
@@ -70,6 +74,7 @@ app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
 app.register(uploadFile);
+app.register(getFiles);
 app.register(createProfile);
 app.register(createDivision);
 app.register(createDepartamento);
