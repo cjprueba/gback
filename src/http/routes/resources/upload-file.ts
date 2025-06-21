@@ -8,7 +8,7 @@ import { Client } from 'minio';
 
 // Initialize MinIO client
 const minioClient = new Client({
-  endPoint: 'localhost',
+  endPoint: process.env.MINIO_ENDPOINT,
   port: parseInt(process.env.MINIO_PORT),
   useSSL: process.env.MINIO_USE_SSL === 'true',
   accessKey: process.env.MINIO_ACCESS_KEY,
@@ -37,6 +37,7 @@ export async function uploadFile(app: FastifyInstance) {
         schema: {
           tags: ['File Upload'],
           summary: 'Upload a file',
+          description: 'Recibe file y ruta del archivo, dos parametros obligatorios',
           consumes: ['multipart/form-data'],
           response: {
             200: z.object({
@@ -49,30 +50,26 @@ export async function uploadFile(app: FastifyInstance) {
       },
       async (request, reply) => {
         try {
+          const files = await request.files(); // Get all files
+          const results = [];
+          let ruta = null;
           
-          const data = await request.file();
-          const ruta = data.fields['ruta']['value'];
-
-          //console.log("data");
-          //console.log(data.fields['ruta']['value']); // virende
-          
-          
-          if (!data) {
-            throw new BadRequestError('No file uploaded');
+          for await (const data of files) {
+            ruta = data.fields['ruta']['value'];
+            const buffer = data.file;
+            
+            await minioClient.putObject(BUCKET_NAME, ruta + data.filename, buffer);
+            
+            results.push({
+              message: 'File uploaded successfully',
+              filename: data.filename,
+              ruta: ruta
+            });
           }
           
-          
-          //const buffer = await data.toBuffer();
-          const buffer = data.file;
-
-          
-
-          // Upload to MinIO
-          await minioClient.putObject(BUCKET_NAME,  data.filename, buffer);
-          
-          return reply.send({ 
+          return reply.send({
             message: 'File uploaded successfully',
-            filename: data.filename,
+            filename: 'test',
             ruta: ruta
           });
         } catch (error) {

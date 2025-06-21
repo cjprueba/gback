@@ -31,7 +31,8 @@ import { registerUser } from './routes/user/register';
 
 // resources
 import { uploadFile } from './routes/resources/upload-file';
-import { getFiles } from './routes/resources/get-files';
+//import { getFiles } from './routes/resources/get-files';
+import { getTree } from './routes/resources/get-tree';
 
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
@@ -74,7 +75,8 @@ app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
 app.register(uploadFile);
-app.register(getFiles);
+//app.register(getFiles);
+app.register(getTree);
 app.register(createProfile);
 app.register(createDivision);
 app.register(createDepartamento);

@@ -1,0 +1,2 @@
+oc set env deployment/gback-git --from=configmap/minio-config
+oc edit configmap minio-config
