@@ -239,7 +239,7 @@ export async function getTree(app: FastifyInstance) {
       '/files/folder/:path',
       {
         schema: {
-          tags: ['File Upload'],
+          tags: ['File Management'],
           summary: 'List contents of a specific folder',
           params: z.object({
             path: z.string().describe('Folder path (use "root" for root folder)')

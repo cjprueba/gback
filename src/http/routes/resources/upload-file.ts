@@ -35,7 +35,7 @@ export async function uploadFile(app: FastifyInstance) {
       '/upload',
       {
         schema: {
-          tags: ['File Upload'],
+          tags: ['File Management'],
           summary: 'Upload a file',
           description: 'Recibe file y ruta del archivo, dos parametros obligatorios',
           consumes: ['multipart/form-data'],

@@ -31,6 +31,7 @@ import { registerUser } from './routes/user/register';
 
 // resources
 import { uploadFile } from './routes/resources/upload-file';
+import { deleteFile } from './routes/resources/delete-file';
 //import { getFiles } from './routes/resources/get-files';
 import { getTree } from './routes/resources/get-tree';
 
@@ -82,6 +83,7 @@ app.register(createDivision);
 app.register(createDepartamento);
 app.register(createUnidad);
 app.register(registerUser);
+app.register(deleteFile);
 
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
