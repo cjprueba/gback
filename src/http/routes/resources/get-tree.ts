@@ -110,7 +110,7 @@ export async function getTree(app: FastifyInstance) {
       '/files',
       {
         schema: {
-          tags: ['File Upload'],
+          tags: ['Resources'],
           summary: 'List all files in bucket (flat structure)',
           response: {
             200: z.object({
@@ -154,7 +154,7 @@ export async function getTree(app: FastifyInstance) {
       '/files/tree',
       {
         schema: {
-          tags: ['File Upload'],
+          tags: ['Resources'],
           summary: 'List all files and folders in bucket (tree structure)',
           querystring: z.object({
             prefix: z.string().optional().describe('Prefix to filter objects')
