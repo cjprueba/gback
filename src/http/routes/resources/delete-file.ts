@@ -23,7 +23,7 @@ export async function deleteFile(app: FastifyInstance) {
       '/file',
       {
         schema: {
-          tags: ['File Management'],
+          tags: ['Resources'],
           summary: 'Delete a file',
           description: 'Delete a file from MinIO storage',
           body: z.object({
