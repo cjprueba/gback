@@ -41,29 +41,39 @@ export async function uploadFile(app: FastifyInstance) {
           response: {
             200: z.object({
               message: z.string(),
-              filename: z.string()
+              filename: z.string(),
+              ruta: z.string()
             }),
           },
         },
       },
       async (request, reply) => {
         try {
+          
           const data = await request.file();
+          const ruta = data.fields['ruta']['value'];
 
+          //console.log("data");
+          //console.log(data.fields['ruta']['value']); // virende
+          
+          
           if (!data) {
             throw new BadRequestError('No file uploaded');
           }
           
+          
           //const buffer = await data.toBuffer();
           const buffer = data.file;
 
+          
 
           // Upload to MinIO
           await minioClient.putObject(BUCKET_NAME,  data.filename, buffer);
           
           return reply.send({ 
             message: 'File uploaded successfully',
-            filename: data.filename
+            filename: data.filename,
+            ruta: ruta
           });
         } catch (error) {
           console.error(error);
