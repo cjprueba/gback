@@ -25,21 +25,21 @@ export async function downloadFile(app: FastifyInstance) {
           summary: 'Download a file',
           description: 'Download a file from MinIO storage',
           querystring: z.object({
-            filePath: z.string().min(1, 'File path is required')
+            path: z.string().min(1, 'File path is required')
           }),
           // No response schema - allows any response type including streams
         },
       },
       async (request, reply) => {
-        const { filePath } = request.query as { filePath: string };
-        const fileName = filePath.split('/').pop() || 'file';
+        const { path } = request.query as { path: string };
+        const fileName = path.split('/').pop() || 'file';
 
         try {
           // Check if file exists
-          await minioClient.statObject(BUCKET_NAME, filePath);
+          await minioClient.statObject(BUCKET_NAME, path);
           
           // Get the file as a stream
-          const stream = await minioClient.getObject(BUCKET_NAME, filePath);
+          const stream = await minioClient.getObject(BUCKET_NAME, path);
           
           // Set appropriate headers
           reply.header('Content-Type', 'application/octet-stream');
