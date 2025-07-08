@@ -1,7 +1,7 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-// oc port-forward pod/postgresql-test-1-knqg9 5432:5432 -n lfuentes-dev
-// oc port-forward svc/postgresql-test 15432:5432 -n lfuentes-dev
+// oc port-forward pod/postgresql 5432:5432 -n lfuentes-dev
+// oc port-forward svc/postgresql 15432:5432 -n lfuentes-dev
 
 /*
 Eliminar y volver a cargar base de datos 
@@ -20,313 +20,488 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Perfiles {
-  id          Int       @id @default(autoincrement())
-  nombre      String    @db.VarChar(50)
-  descripcion String?   @db.Text
-  usuarios    Usuarios[]
 
-  @@map("perfiles")
+model usuarios {
+  id                  Int       @id @default(autoincrement())
+  nombre_completo     String?   @db.VarChar(100)
+  correo_electronico  String?   @unique  @db.VarChar(100)
+  perfil_id           Int
+  division_id         Int?
+  departamento_id     Int?
+  unidad_id           Int?
+  activo              Boolean   @default(true)
+  created_at          DateTime  @default(now())
+
+  // Relaciones
+  perfil              perfiles          @relation(fields: [perfil_id], references: [id])
+  division            divisiones?       @relation(fields: [division_id], references: [id])
+  departamento        departamentos?    @relation(fields: [departamento_id], references: [id])
+  unidad              unidades?         @relation(fields: [unidad_id], references: [id])
+  
+  // Relaciones inversas
+  proyectos_creados           proyectos[]           @relation("UsuarioCreador")
+  documentos_creados          documentos[]          @relation("UsuarioCreador")
+  documentos_subidos          documentos[]          @relation("UsuarioSubidor")
+  carpetas_creadas            carpetas[]
+  etapas_creadas              etapas_registro[]     @relation("UsuarioCreadorEtapa")
+  etapas_asignadas            etapas_registro[]     @relation("InspectorFiscal")
+  inspector_fiscal_asignado   inspector_fiscal[]
+  auditorias_realizadas       auditorias[]
+  archivo_historial_creado    archivo_historial[]
+  carpetas_auditoria_creadas  carpetas_auditoria[]
+  alertas_creadas             alertas[]             @relation("UsuarioCreadorAlerta")
+  alertas_asignadas           alertas[]             @relation("UsuarioAsignadoAlerta")
 }
 
-model Divisiones {
-  id            Int             @id @default(autoincrement())
-  nombre        String          @db.VarChar(100)
-  descripcion   String?         @db.Text
-  activa        Boolean         @default(true)
-  created_at    DateTime        @default(now())
-  usuarios      Usuarios[]
-  departamentos Departamentos[]
-  unidades      Unidades[]
-  proyectos     Proyectos[]
+model perfiles {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @db.VarChar(50)
+  descripcion String?
 
-  @@map("divisiones")
+  // Relaciones inversas
+  usuarios usuarios[]
 }
 
-model Departamentos {
-  id          Int         @id @default(autoincrement())
-  nombre      String      @db.VarChar(100)
-  descripcion String?     @db.Text
+model divisiones {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @db.VarChar(100)
+  descripcion String?
+  activa      Boolean  @default(true)
+  created_at  DateTime @default(now())
+
+  // Relaciones inversas
+  usuarios      usuarios[]
+  departamentos departamentos[]
+  unidades unidades[]
+  proyectos     proyectos[]
+  carpetas      carpetas[]
+}
+
+model departamentos {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @db.VarChar(100)
+  descripcion String?
   division_id Int
-  activo      Boolean     @default(true)
-  created_at  DateTime    @default(now())
-  division    Divisiones  @relation(fields: [division_id], references: [id])
-  usuarios    Usuarios[]
-  unidades    Unidades[]
-  proyectos   Proyectos[]
+  activo      Boolean  @default(true)
+  created_at  DateTime @default(now())
 
-  @@map("departamentos")
+  // Relaciones
+  division divisiones @relation(fields: [division_id], references: [id])
+
+  // Relaciones inversas
+  usuarios  usuarios[]
+  unidades  unidades[]
+  proyectos proyectos[]
+  carpetas  carpetas[]
 }
 
-model Unidades {
-  id              Int            @id @default(autoincrement())
-  nombre          String         @db.VarChar(100)
-  descripcion     String?        @db.Text
-  departamento_id Int?
-  division_id     Int?
-  activa          Boolean        @default(true)
-  created_at      DateTime       @default(now())
-  departamento    Departamentos? @relation(fields: [departamento_id], references: [id])
-  division        Divisiones?    @relation(fields: [division_id], references: [id])
-  usuarios        Usuarios[]
-  proyectos       Proyectos[]
+model unidades {
+  id              Int      @id @default(autoincrement())
+  nombre          String   @db.VarChar(100)
+  descripcion     String?
+  departamento_id Int
+  division_id Int
+  activa          Boolean  @default(true)
+  created_at      DateTime @default(now())
 
-  @@map("unidades")
+  // Relaciones
+  departamento departamentos @relation(fields: [departamento_id], references: [id])
+  division divisiones @relation(fields: [division_id], references: [id])
+
+  // Relaciones inversas
+  usuarios  usuarios[]
+  proyectos proyectos[]
 }
 
-model Usuarios {
-  id                   Int                    @id @default(autoincrement())
-  nombre_completo      String                @db.VarChar(100)
-  correo_electronico   String                @unique @db.VarChar(50)
-  perfil_id            Int
-  division_id          Int?
-  departamento_id      Int?
-  unidad_id            Int?
-  activo               Boolean                @default(true)
-  created_at           DateTime               @default(now())
-  perfil               Perfiles               @relation(fields: [perfil_id], references: [id])
-  division             Divisiones?            @relation(fields: [division_id], references: [id])
-  departamento         Departamentos?         @relation(fields: [departamento_id], references: [id])
-  unidad               Unidades?              @relation(fields: [unidad_id], references: [id])
-  proyectos_creados    Proyectos[]            @relation("ProyectoCreador")
-  documentos_creados   Documentos[]           @relation("DocumentoCreador")
-  documentos_subidos   Documentos[]           @relation("DocumentoSubido")
-  inspector_fiscal     InspectorFiscal[]
-  archivo_historial    ArchivoHistorial[]
-  auditorias           Auditorias[]
+model etapas_tipo {
+  id          Int    @id @default(autoincrement())
+  nombre      String @db.VarChar(100)
+  descripcion String?
 
-  @@map("usuarios")
+  // Información de la etapa
+  tipo_iniciativa Boolean   @default(true)
+  tipo_obra Boolean   @default(true)
+  region Boolean   @default(true)
+  provincia Boolean   @default(true)
+  comuna Boolean   @default(true)
+  volumen Boolean   @default(true)
+  
+  // Información financiera
+  presupuesto_oficial Boolean   @default(true)
+  
+  // Fechas importantes
+  fecha_llamado_licitacion Boolean   @default(true)
+  fecha_recepcion_ofertas_tecnicas Boolean   @default(true)
+  fecha_apertura_ofertas_economicas Boolean   @default(true)
+  fecha_inicio_concesion Boolean   @default(true)
+  plazo_total_meses Boolean   @default(true)
+  
+  // Información de la adjudicación
+  decreto_adjudicacion Boolean   @default(true)
+  sociedad_concesionaria Boolean   @default(true)
+  
+  // Inspector fiscal asignado
+  inspector_fiscal_id Boolean   @default(true)
+
+  // Relaciones inversas
+  etapas_registro etapas_registro[]
 }
 
-model Proyectos {
-  id                    Int                     @id @default(autoincrement())
-  codigo_proyecto       String                  @unique @db.VarChar(50)
-  nombre                String                  @db.VarChar(255)
-  estado                String?                 @db.VarChar(50)
-  fecha_inicio          DateTime?               @db.Date
-  fecha_termino         DateTime?               @db.Date
-  division_id           Int?
-  departamento_id       Int?
-  unidad_id             Int?
-  creado_por            Int
-  created_at            DateTime                @default(now())
-  division              Divisiones?             @relation(fields: [division_id], references: [id])
-  departamento          Departamentos?          @relation(fields: [departamento_id], references: [id])
-  unidad                Unidades?               @relation(fields: [unidad_id], references: [id])
-  creador               Usuarios                @relation("ProyectoCreador", fields: [creado_por], references: [id])
-  contratos             Contratos[]
-  concesiones           Concesiones[]
-  externos_involucrados ExternosInvolucrados[]
-  fechas_clave          FechasClave[]
-  inspector_fiscal      InspectorFiscal[]
-  documentos            Documentos[]
+model etapas_registro {
+  id                                    Int       @id @default(autoincrement())
+  etapa_tipo_id                         Int
+  
+  // Información de la etapa
+  tipo_iniciativa                       String    @db.VarChar(20)
+  tipo_obra                             String?   @db.VarChar(100)
+  region                                String?   @db.VarChar(50)
+  provincia                             String?   @db.VarChar(50)
+  comuna                                String?   @db.VarChar(50)
+  volumen                               String?
+  
+  // Información financiera
+  presupuesto_oficial                   String?   @db.VarChar(100)
+  
+  // Fechas importantes
+  fecha_llamado_licitacion                      DateTime? @db.Date
+  fecha_recepcion_ofertas_tecnicas      DateTime? @db.Date
+  fecha_apertura_ofertas_economicas     DateTime? @db.Date
+  fecha_inicio_concesion                DateTime? @db.Date
+  plazo_total_meses                     Int?
+  
+  // Información de la adjudicación
+  decreto_adjudicacion                  String?
+  sociedad_concesionaria                String?   @db.VarChar(255)
+  
+  // Inspector fiscal asignado
+  inspector_fiscal_id                   Int?
+  
+  
+  // Auditoria
+  usuario_creador                       Int
+  fecha_creacion                        DateTime  @default(now())
+  fecha_actualizacion                   DateTime  @default(now()) @updatedAt
+  activa                                Boolean   @default(true)
 
-  @@map("proyectos")
+  // Relaciones
+  etapa_tipo         etapas_tipo @relation(fields: [etapa_tipo_id], references: [id])
+  inspector_fiscal   usuarios?   @relation("InspectorFiscal", fields: [inspector_fiscal_id], references: [id])
+  usuario_creador_rel usuarios   @relation("UsuarioCreadorEtapa", fields: [usuario_creador], references: [id])
+
+  // Relaciones inversas
+  proyectos proyectos[]
+  alertas   alertas[]
 }
 
-model Contratos {
-  id                   Int                    @id @default(autoincrement())
-  codigo_contrato      String                 @unique @db.VarChar(50)
-  proyecto_id          Int
-  descripcion          String?                @db.Text
-  fecha_firma          DateTime?              @db.Date
-  fecha_vencimiento    DateTime?              @db.Date
-  monto                Decimal?               @db.Decimal(18, 2)
-  estado               String?                @db.VarChar(30)
-  created_at           DateTime               @default(now())
-  proyecto             Proyectos              @relation(fields: [proyecto_id], references: [id])
-  fechas_clave         FechasClave[]
-  hitos_contractuales  HitosContractuales[]
-  documentos           Documentos[]
+model proyectos {
+  id                 Int       @id @default(autoincrement())
+  codigo_proyecto    String    @unique @db.VarChar(50)
+  etapa_registro_id  Int
+  carpeta_inicial    Json?
+  nombre             String    @db.VarChar(255)
+  estado             String?   @db.VarChar(50)
+  fecha_inicio       DateTime? @db.Date
+  fecha_termino      DateTime? @db.Date
+  division_id        Int?
+  departamento_id    Int?
+  unidad_id          Int?
+  creado_por         Int
+  created_at         DateTime  @default(now())
 
-  @@map("contratos")
+  // Relaciones
+  etapa_registro etapas_registro @relation(fields: [etapa_registro_id], references: [id])
+  division       divisiones?     @relation(fields: [division_id], references: [id])
+  departamento   departamentos?  @relation(fields: [departamento_id], references: [id])
+  unidad         unidades?       @relation(fields: [unidad_id], references: [id])
+  creador        usuarios        @relation("UsuarioCreador", fields: [creado_por], references: [id])
+
+  // Relaciones inversas
+  concesiones              concesiones[]
+  externos_involucrados    externos_involucrados[]
+  fechas_clave            fechas_clave[]
+  inspector_fiscal_asignado inspector_fiscal[]
+  carpetas                carpetas[]
+  documentos              documentos[]
+  alertas                 alertas[]
 }
 
-model Concesiones {
-  id                  Int                   @id @default(autoincrement())
-  codigo_concesion    String                @unique @db.VarChar(50)
-  proyecto_id         Int
-  nombre              String                @db.VarChar(255)
-  descripcion         String?               @db.Text
-  estado              String?               @db.VarChar(30)
-  fecha_inicio        DateTime?             @db.Date
-  fecha_termino       DateTime?             @db.Date
-  tipo_obra           String?               @db.VarChar(100) // infraestructura vial, aeroportuaria, penitenciaria, etc.
-  ubicacion           String?               @db.VarChar(255)
-  created_at          DateTime              @default(now())
-  proyecto            Proyectos             @relation(fields: [proyecto_id], references: [id])
-  obras_concesionadas ObrasConcesionadas[]
-  fechas_clave        FechasClave[]
+model alertas {
+  id                      Int       @id @default(autoincrement())
+  proyecto_id             Int?
+  concesion_id            Int?
+  etapa_registro_id       Int?
+  documento_id            String?   @db.Uuid
+  
+  tipo_alerta             String    @db.VarChar(50)
+  descripcion             String?
+  
+  fecha_alerta            DateTime
+  fecha_vencimiento       DateTime?
+  
+  estado                  String    @default("activa") @db.VarChar(30)
+  automatica              Boolean   @default(false)
+  
+  usuario_creador         Int
+  usuario_asignado        Int?
+  
+  fecha_creacion          DateTime  @default(now())
+  
+  notificacion_enviada    Boolean   @default(false)
+  
+  activa                  Boolean   @default(true)
 
-  @@map("concesiones")
+  // Relaciones
+  proyecto         proyectos?        @relation(fields: [proyecto_id], references: [id])
+  concesion        concesiones?      @relation(fields: [concesion_id], references: [id])
+  etapa_registro   etapas_registro?  @relation(fields: [etapa_registro_id], references: [id])
+  documento        documentos?       @relation(fields: [documento_id], references: [id])
+  creador          usuarios          @relation("UsuarioCreadorAlerta", fields: [usuario_creador], references: [id])
+  asignado         usuarios?         @relation("UsuarioAsignadoAlerta", fields: [usuario_asignado], references: [id])
 }
 
-model ObrasConcesionadas {
-  id            Int         @id @default(autoincrement())
+model concesiones {
+  id                Int       @id @default(autoincrement())
+  codigo_concesion  String    @unique @db.VarChar(50)
+  proyecto_id       Int
+  nombre            String    @db.VarChar(255)
+  descripcion       String?
+  estado            String?   @db.VarChar(30)
+  fecha_inicio      DateTime? @db.Date
+  fecha_termino     DateTime? @db.Date
+  tipo_obra         String?   @db.VarChar(100)
+  ubicacion         String?   @db.VarChar(255)
+  created_at        DateTime  @default(now())
+
+  // Relaciones
+  proyecto proyectos @relation(fields: [proyecto_id], references: [id])
+
+  // Relaciones inversas
+  obras_concesionadas obras_concesionadas[]
+  fechas_clave       fechas_clave[]
+  carpetas           carpetas[]
+  alertas            alertas[]
+}
+
+model obras_concesionadas {
+  id            Int       @id @default(autoincrement())
   concesion_id  Int
-  nombre        String      @db.VarChar(255)
-  descripcion   String?     @db.Text
-  tipo_obra     String?     @db.VarChar(100)
-  estado        String?     @db.VarChar(30)
-  fecha_inicio  DateTime?   @db.Date
-  fecha_termino DateTime?   @db.Date
-  ubicacion     String?     @db.VarChar(255)
-  presupuesto   Decimal?    @db.Decimal(18, 2)
-  concesion     Concesiones @relation(fields: [concesion_id], references: [id])
+  nombre        String    @db.VarChar(255)
+  descripcion   String?
+  tipo_obra     String?   @db.VarChar(100)
+  estado        String?   @db.VarChar(30)
+  fecha_inicio  DateTime? @db.Date
+  fecha_termino DateTime? @db.Date
+  ubicacion     String?   @db.VarChar(255)
+  presupuesto   Decimal?  @db.Decimal(18, 2)
 
-  @@map("obras_concesionadas")
+  // Relaciones
+  concesion concesiones @relation(fields: [concesion_id], references: [id])
 }
 
-model Empresas {
-  id                    Int                     @id @default(autoincrement())
-  rut                   String                  @unique @db.VarChar(12)
-  razon_social          String                  @db.VarChar(255)
-  nombre_fantasia       String?                 @db.VarChar(255)
-  direccion             String?                 @db.Text
-  telefono              String?                 @db.VarChar(20)
-  email                 String?                 @db.VarChar(100)
-  representante_legal   String?                 @db.VarChar(255)
-  activa                Boolean                 @default(true)
-  created_at            DateTime                @default(now())
-  externos_involucrados ExternosInvolucrados[]
+model empresas {
+  id                  Int      @id @default(autoincrement())
+  rut                 String   @unique @db.VarChar(12)
+  razon_social        String   @db.VarChar(255)
+  nombre_fantasia     String?  @db.VarChar(255)
+  direccion           String?
+  telefono            String?  @db.VarChar(20)
+  email               String?  @db.VarChar(100)
+  representante_legal String?  @db.VarChar(255)
+  activa              Boolean  @default(true)
+  created_at          DateTime @default(now())
 
-  @@map("empresas")
+  // Relaciones inversas
+  externos_involucrados externos_involucrados[]
 }
 
-model Asesores {
-  id                    Int                     @id @default(autoincrement())
-  rut                   String                  @unique @db.VarChar(12)
-  nombre                String                  @db.VarChar(100)
-  apellido              String                  @db.VarChar(100)
-  especialidad          String?                 @db.VarChar(100)
-  telefono              String?                 @db.VarChar(20)
-  email                 String?                 @db.VarChar(100)
-  activo                Boolean                 @default(true)
-  created_at            DateTime                @default(now())
-  externos_involucrados ExternosInvolucrados[]
+model asesores {
+  id           Int      @id @default(autoincrement())
+  rut          String   @unique @db.VarChar(12)
+  nombre       String   @db.VarChar(100)
+  apellido     String   @db.VarChar(100)
+  especialidad String?  @db.VarChar(100)
+  telefono     String?  @db.VarChar(20)
+  email        String?  @db.VarChar(100)
+  activo       Boolean  @default(true)
+  created_at   DateTime @default(now())
 
-  @@map("asesores")
+  // Relaciones inversas
+  externos_involucrados externos_involucrados[]
 }
 
-model ExternosInvolucrados {
-  id                  Int        @id @default(autoincrement())
+model externos_involucrados {
+  id                  Int       @id @default(autoincrement())
   proyecto_id         Int
   empresa_id          Int?
   asesor_id           Int?
-  tipo_participacion  String?    @db.VarChar(50) // Contratista, Consultor, Asesor, etc.
-  rol                 String?    @db.VarChar(100)
-  fecha_inicio        DateTime?  @db.Date
-  fecha_termino       DateTime?  @db.Date
-  activo              Boolean    @default(true)
-  proyecto            Proyectos  @relation(fields: [proyecto_id], references: [id])
-  empresa             Empresas?  @relation(fields: [empresa_id], references: [id])
-  asesor              Asesores?  @relation(fields: [asesor_id], references: [id])
+  tipo_participacion  String    @db.VarChar(50)
+  rol                 String    @db.VarChar(100)
+  fecha_inicio        DateTime? @db.Date
+  fecha_termino       DateTime? @db.Date
+  activo              Boolean   @default(true)
 
-  @@map("externos_involucrados")
+  // Relaciones
+  proyecto proyectos @relation(fields: [proyecto_id], references: [id])
+  empresa  empresas? @relation(fields: [empresa_id], references: [id])
+  asesor   asesores? @relation(fields: [asesor_id], references: [id])
 }
 
-model FechasClave {
-  id                Int         @id @default(autoincrement())
-  proyecto_id       Int?
-  contrato_id       Int?
-  concesion_id      Int?
-  tipo_fecha        String?     @db.VarChar(50) // licitacion, adjudicacion, inicio_concesion, puesta_servicio
-  fecha_programada  DateTime?   @db.Date
-  fecha_real        DateTime?   @db.Date
-  descripcion       String?     @db.Text
-  es_hito_critico   Boolean     @default(false)
-  proyecto          Proyectos?  @relation(fields: [proyecto_id], references: [id])
-  contrato          Contratos?  @relation(fields: [contrato_id], references: [id])
-  concesion         Concesiones? @relation(fields: [concesion_id], references: [id])
-
-  @@map("fechas_clave")
-}
-
-model InspectorFiscal {
+model fechas_clave {
   id                Int       @id @default(autoincrement())
-  proyecto_id       Int
-  usuario_id        Int
-  fecha_asignacion  DateTime? @db.Date
-  fecha_termino     DateTime? @db.Date
-  activo            Boolean   @default(true)
-  observaciones     String?   @db.Text
-  proyecto          Proyectos @relation(fields: [proyecto_id], references: [id])
-  usuario           Usuarios  @relation(fields: [usuario_id], references: [id])
+  proyecto_id       Int?
+  concesion_id      Int?
+  tipo_fecha        String    @db.VarChar(50)
+  fecha_programada  DateTime? @db.Date
+  fecha_real        DateTime? @db.Date
+  descripcion       String?
+  es_hito_critico   Boolean   @default(false)
 
-  @@map("inspector_fiscal")
+  // Relaciones
+  proyecto  proyectos?   @relation(fields: [proyecto_id], references: [id])
+  concesion concesiones? @relation(fields: [concesion_id], references: [id])
 }
 
-model HitosContractuales {
+model inspector_fiscal {
+  id                 Int       @id @default(autoincrement())
+  proyecto_id        Int
+  usuario_id         Int
+  fecha_asignacion   DateTime? @db.Date
+  fecha_termino      DateTime? @db.Date
+  activo             Boolean   @default(true)
+  observaciones      String?
+
+  // Relaciones
+  proyecto proyectos @relation(fields: [proyecto_id], references: [id])
+  usuario  usuarios  @relation(fields: [usuario_id], references: [id])
+}
+
+model registro_documental {
   id                   Int       @id @default(autoincrement())
-  contrato_id          Int
-  descripcion          String?   @db.Text
+  documento_id         String    @db.Uuid
+  descripcion          String?
   fecha_comprometida   DateTime? @db.Date
   fecha_cumplimiento   DateTime? @db.Date
   cumplido             Boolean   @default(false)
   alerta_30            Boolean   @default(false)
   alerta_15            Boolean   @default(false)
   alerta_5             Boolean   @default(false)
-  contrato             Contratos @relation(fields: [contrato_id], references: [id])
 
-  @@map("hitos_contractuales")
+  // Relación con documentos
+  documento documentos @relation(fields: [documento_id], references: [id])
 }
 
-model Documentos {
-  id                         String             @id @default(cuid())
-  nombre_archivo             String             @db.VarChar(255)
-  extension                  String?            @db.VarChar(10)
-  tamano                     BigInt?
-  tipo_mime                  String?            @db.VarChar(100)
-  fecha_creacion             DateTime           @default(now())
-  usuario_creador            Int
-  descripcion                String?            @db.Text
-  categoria                  String?            @db.VarChar(100)
-  estado                     String?            @db.VarChar(30) // Activo, Inactivo, Eliminado
-  version                    String?            @db.VarChar(10)
-  archivo_relacionado        String?
-  ruta_storage               String?            @db.Text
-  hash_integridad            String?            @db.VarChar(255)
-  etiquetas                  String[]
-  fecha_ultima_actualizacion DateTime           @default(now())
-  contrato_id                Int?
-  proyecto_id                Int?
-  subido_por                 Int
-  metadata                   Json?
-  creador                    Usuarios           @relation("DocumentoCreador", fields: [usuario_creador], references: [id])
-  subidor                    Usuarios           @relation("DocumentoSubido", fields: [subido_por], references: [id])
-  contrato                   Contratos?         @relation(fields: [contrato_id], references: [id])
-  proyecto                   Proyectos?         @relation(fields: [proyecto_id], references: [id])
-  archivo_padre              Documentos?        @relation("DocumentoRelacionado", fields: [archivo_relacionado], references: [id])
-  archivos_relacionados      Documentos[]       @relation("DocumentoRelacionado")
-  historial                  ArchivoHistorial[]
+model carpetas {
+  id                          Int      @id @default(autoincrement())
+  nombre                      String   @db.VarChar(255)
+  descripcion                 String?
+  carpeta_padre_id            Int?
+  
+  proyecto_id                 Int?
+  concesion_id                Int?
+  division_id                 Int?
+  departamento_id             Int?
+  
+  ruta_fisica                 String   @db.VarChar(500)
+  orden_visualizacion         Int      @default(0)
+  
+  usuario_creador             Int
+  fecha_creacion              DateTime @default(now())
+  fecha_actualizacion         DateTime @default(now()) @updatedAt
+  
+  max_tamaño_mb               Int?
+  tipos_archivo_permitidos    String[]
 
-  @@map("documentos")
+  // Relaciones
+  carpeta_padre   carpetas?     @relation("CarpetaHijos", fields: [carpeta_padre_id], references: [id])
+  proyecto        proyectos?    @relation(fields: [proyecto_id], references: [id])
+  concesion       concesiones?  @relation(fields: [concesion_id], references: [id])
+  division        divisiones?   @relation(fields: [division_id], references: [id])
+  departamento    departamentos? @relation(fields: [departamento_id], references: [id])
+  creador         usuarios      @relation(fields: [usuario_creador], references: [id])
+
+  // Relaciones inversas
+  carpetas_hijas        carpetas[]             @relation("CarpetaHijos")
+  documentos            documentos[]
+  carpetas_auditoria    carpetas_auditoria[]
 }
 
-model ArchivoHistorial {
-  id               Int        @id @default(autoincrement())
-  archivo_id       String
+model documentos {
+  id String @id @default(uuid()) @db.Uuid
+  nombre_archivo              String    @db.VarChar(255)
+  extension                   String?   @db.VarChar(10)
+  tamano                      BigInt?
+  tipo_mime                   String?   @db.VarChar(100)
+  fecha_creacion              DateTime  @default(now())
+  usuario_creador             Int
+  descripcion                 String?
+  categoria                   String?   @db.VarChar(100)
+  estado                      String?   @db.VarChar(30)
+  version                     String?   @db.VarChar(10)
+  archivo_relacionado         String?   @db.Uuid
+  
+  carpeta_id                  Int
+  
+  ruta_storage                String?
+  hash_integridad             String?   @db.VarChar(255)
+  etiquetas                   String[]
+  fecha_ultima_actualizacion  DateTime  @default(now()) @updatedAt
+  
+  proyecto_id                 Int?
+  subido_por                  Int
+  metadata                    Json?
+
+  // Relaciones
+  carpeta             carpetas   @relation(fields: [carpeta_id], references: [id])
+  creador             usuarios   @relation("UsuarioCreador", fields: [usuario_creador], references: [id])
+  subio_por           usuarios   @relation("UsuarioSubidor", fields: [subido_por], references: [id])
+  proyecto            proyectos? @relation(fields: [proyecto_id], references: [id])
+  documento_relacionado documentos? @relation("DocumentosRelacionados", fields: [archivo_relacionado], references: [id])
+
+  // Relaciones inversas
+  documentos_relacionados documentos[]           @relation("DocumentosRelacionados")
+  archivo_historial      archivo_historial[]
+  registro_documental    registro_documental[]
+  alertas                alertas[]
+}
+
+model carpetas_auditoria {
+  id               Int      @id @default(autoincrement())
+  carpeta_id       Int
   usuario_id       Int
-  accion           String?    @db.VarChar(50) // Creación, Actualización, Eliminación, Cambio de versión
-  descripcion      String?    @db.Text
-  fecha            DateTime   @default(now())
-  version_anterior String?    @db.Text
-  version_nueva    String?    @db.Text
-  archivo          Documentos @relation(fields: [archivo_id], references: [id])
-  usuario          Usuarios   @relation(fields: [usuario_id], references: [id])
+  accion           String   @db.VarChar(50)
+  detalle_anterior Json?
+  detalle_nuevo    Json?
+  fecha            DateTime @default(now())
 
-  @@map("archivo_historial")
+  // Relaciones
+  carpeta carpetas @relation(fields: [carpeta_id], references: [id])
+  usuario usuarios @relation(fields: [usuario_id], references: [id])
 }
 
-model Auditorias {
+model archivo_historial {
+  id               Int      @id @default(autoincrement())
+  archivo_id       String   @db.Uuid
+  usuario_id       Int
+  accion           String   @db.VarChar(50)
+  descripcion      String?
+  fecha            DateTime @default(now())
+  version_anterior String?
+  version_nueva    String?
+
+  // Relaciones
+  archivo documentos @relation(fields: [archivo_id], references: [id])
+  usuario usuarios   @relation(fields: [usuario_id], references: [id])
+}
+
+model auditorias {
   id          Int      @id @default(autoincrement())
   usuario_id  Int
-  accion      String?  @db.VarChar(100)
-  entidad     String?  @db.VarChar(50)
-  entidad_id  Int?
-  descripcion String?  @db.Text
+  accion      String   @db.VarChar(100)
+  entidad     String   @db.VarChar(50)
+  entidad_id  Int
+  descripcion String?
   fecha       DateTime @default(now())
-  usuario     Usuarios @relation(fields: [usuario_id], references: [id])
 
-  @@map("auditorias")
+  // Relaciones
+  usuario usuarios @relation(fields: [usuario_id], references: [id])
 }

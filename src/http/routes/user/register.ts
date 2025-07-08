@@ -51,12 +51,13 @@ export async function registerUser(app: FastifyInstance) {
         // Create the new user
         const user = await prisma.usuarios.create({
           data: {
+
             nombre_completo,
             correo_electronico,
-            perfil_id,
-            division_id,
-            departamento_id,
-            unidad_id
+            perfil_id: Number(perfil_id), // Explicitly convert to Number if needed
+            division_id: division_id ? Number(division_id) : null,
+            departamento_id: departamento_id ? Number(departamento_id) : null,
+            unidad_id: unidad_id ? Number(unidad_id) : null
           }
         });
 
