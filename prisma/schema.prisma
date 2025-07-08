@@ -1,7 +1,7 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-// oc port-forward pod/postgresql-test-1-knqg9 5432:5432 -n lfuentes-dev
-// oc port-forward svc/postgresql-test 15432:5432 -n lfuentes-dev
+// oc port-forward pod/postgresql 5432:5432 -n lfuentes-dev
+// oc port-forward svc/postgresql 15432:5432 -n lfuentes-dev
 
 /*
 Eliminar y volver a cargar base de datos 
@@ -23,9 +23,8 @@ datasource db {
 
 model usuarios {
   id                  Int       @id @default(autoincrement())
-  username            String    @unique @db.VarChar(50)
   nombre_completo     String?   @db.VarChar(100)
-  correo_electronico  String?   @db.VarChar(100)
+  correo_electronico  String?   @unique  @db.VarChar(100)
   perfil_id           Int
   division_id         Int?
   departamento_id     Int?
@@ -73,6 +72,7 @@ model divisiones {
   // Relaciones inversas
   usuarios      usuarios[]
   departamentos departamentos[]
+  unidades unidades[]
   proyectos     proyectos[]
   carpetas      carpetas[]
 }
@@ -100,11 +100,13 @@ model unidades {
   nombre          String   @db.VarChar(100)
   descripcion     String?
   departamento_id Int
+  division_id Int
   activa          Boolean  @default(true)
   created_at      DateTime @default(now())
 
   // Relaciones
   departamento departamentos @relation(fields: [departamento_id], references: [id])
+  division divisiones @relation(fields: [division_id], references: [id])
 
   // Relaciones inversas
   usuarios  usuarios[]
@@ -116,14 +118,37 @@ model etapas_tipo {
   nombre      String @db.VarChar(100)
   descripcion String?
 
+  // Información de la etapa
+  tipo_iniciativa Boolean   @default(true)
+  tipo_obra Boolean   @default(true)
+  region Boolean   @default(true)
+  provincia Boolean   @default(true)
+  comuna Boolean   @default(true)
+  volumen Boolean   @default(true)
+  
+  // Información financiera
+  presupuesto_oficial Boolean   @default(true)
+  
+  // Fechas importantes
+  fecha_llamado_licitacion Boolean   @default(true)
+  fecha_recepcion_ofertas_tecnicas Boolean   @default(true)
+  fecha_apertura_ofertas_economicas Boolean   @default(true)
+  fecha_inicio_concesion Boolean   @default(true)
+  plazo_total_meses Boolean   @default(true)
+  
+  // Información de la adjudicación
+  decreto_adjudicacion Boolean   @default(true)
+  sociedad_concesionaria Boolean   @default(true)
+  
+  // Inspector fiscal asignado
+  inspector_fiscal_id Boolean   @default(true)
+
   // Relaciones inversas
   etapas_registro etapas_registro[]
 }
 
 model etapas_registro {
   id                                    Int       @id @default(autoincrement())
-  nombre                                String    @db.VarChar(100)
-  descripcion                           String?
   etapa_tipo_id                         Int
   
   // Información de la etapa
@@ -135,15 +160,13 @@ model etapas_registro {
   volumen                               String?
   
   // Información financiera
-  presupuesto_oficial                   Decimal?  @db.Decimal(18, 2)
+  presupuesto_oficial                   String?   @db.VarChar(100)
   
   // Fechas importantes
-  fecha_licitacion                      DateTime? @db.Date
+  fecha_llamado_licitacion                      DateTime? @db.Date
   fecha_recepcion_ofertas_tecnicas      DateTime? @db.Date
   fecha_apertura_ofertas_economicas     DateTime? @db.Date
-  fecha_adjudicacion                    DateTime? @db.Date
   fecha_inicio_concesion                DateTime? @db.Date
-  fecha_puesta_servicio                 DateTime? @db.Date
   plazo_total_meses                     Int?
   
   // Información de la adjudicación
@@ -153,15 +176,6 @@ model etapas_registro {
   // Inspector fiscal asignado
   inspector_fiscal_id                   Int?
   
-  // Control de estado y orden
-  estado                                String    @default("planificada") @db.VarChar(30)
-  orden_secuencial                      Int       @default(1)
-  es_etapa_critica                      Boolean   @default(false)
-  permite_solapamiento                  Boolean   @default(false)
-  
-  // Documentación requerida
-  documentos_requeridos                 String[]
-  carpeta_documentos_id                 Int?
   
   // Auditoria
   usuario_creador                       Int
@@ -172,7 +186,6 @@ model etapas_registro {
   // Relaciones
   etapa_tipo         etapas_tipo @relation(fields: [etapa_tipo_id], references: [id])
   inspector_fiscal   usuarios?   @relation("InspectorFiscal", fields: [inspector_fiscal_id], references: [id])
-  carpeta_documentos carpetas?   @relation(fields: [carpeta_documentos_id], references: [id])
   usuario_creador_rel usuarios   @relation("UsuarioCreadorEtapa", fields: [usuario_creador], references: [id])
 
   // Relaciones inversas
@@ -409,7 +422,6 @@ model carpetas {
   // Relaciones inversas
   carpetas_hijas        carpetas[]             @relation("CarpetaHijos")
   documentos            documentos[]
-  etapas_registro       etapas_registro[]
   carpetas_auditoria    carpetas_auditoria[]
 }
 

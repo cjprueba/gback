@@ -35,6 +35,10 @@ import { deleteFile } from './routes/resources/delete-file';
 import { downloadFile } from './routes/resources/download-file';
 import { getTree } from './routes/resources/get-tree';
 
+// etapas
+import { etapasRoutes } from './routes/etapas/etapas';
+import { etapasTipoRoutes } from './routes/etapas/etapas-tipo';
+
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
 app.setSerializerCompiler(serializerCompiler);
@@ -84,6 +88,8 @@ app.register(createUnidad);
 app.register(registerUser);
 app.register(deleteFile);
 app.register(downloadFile);
+app.register(etapasRoutes);
+app.register(etapasTipoRoutes);
 
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
