@@ -1,0 +1,378 @@
+// Diagrama de Base de Datos para dbdiagram.io
+// Sistema de Gestión Documental
+
+Table usuarios {
+id integer [primary key, increment]
+username varchar(50) [not null, unique]
+nombre_completo varchar(100)
+correo_electronico varchar(100)
+perfil_id integer [ref: > perfiles.id]
+division_id integer [ref: > divisiones.id, null]
+departamento_id integer [ref: > departamentos.id, null]
+unidad_id integer [ref: > unidades.id, null]
+activo boolean [default: true]
+created_at timestamp [default: `now()`]
+}
+
+Table perfiles {
+id integer [primary key, increment]
+nombre varchar(50) [not null]
+descripcion text
+}
+
+Table divisiones {
+id integer [primary key, increment]
+nombre varchar(100) [not null]
+descripcion text
+activa boolean [default: true]
+created_at timestamp [default: `now()`]
+}
+
+Table departamentos {
+id integer [primary key, increment]
+nombre varchar(100) [not null]
+descripcion text
+division_id integer [ref: > divisiones.id]
+activo boolean [default: true]
+created_at timestamp [default: `now()`]
+}
+
+Table unidades {
+id integer [primary key, increment]
+nombre varchar(100) [not null]
+descripcion text
+departamento_id integer [ref: > departamentos.id]
+activa boolean [default: true]
+created_at timestamp [default: `now()`]
+}
+
+Table etapas_tipo {
+  id integer [primary key, increment]
+  nombre varchar(100) [not null]
+  descripcion text
+  // Información de la etapa
+  tipo_iniciativa boolean [not null] // Publica, Privada
+  tipo_obra boolean [not null] // infraestructura vial, aeroportuaria, penitenciaria
+  region boolean [not null]
+  provincia boolean [not null]
+  comuna boolean [not null]
+  volumen boolean [not null] // Descripción del volumen de obra
+  
+  // Información financiera
+  presupuesto_oficial boolean [not null]
+  
+  // Fechas importantes
+  fecha_llamado_licitacion boolean [not null]
+  fecha_recepcion_ofertas_tecnicas boolean [not null]
+  fecha_apertura_ofertas_economicas boolean [not null]
+  fecha_inicio_concesion boolean [not null]
+  plazo_total_meses boolean [not null]
+  
+  // Información de la adjudicación
+  decreto_adjudicacion boolean [not null]
+  sociedad_concesionaria boolean [not null]
+  
+  // Inspector fiscal asignado
+  inspector_fiscal_id boolean [not null]
+  
+}
+
+Table tipos_iniciativas {
+  id integer [primary key, increment]
+  nombre varchar(100)
+}
+
+Table tipos_obras {
+  id integer [primary key, increment]
+  nombre varchar(100)
+}
+
+Table regiones {
+  id integer [primary key, increment]
+  codigo varchar(5) [not null, unique] // Código oficial (ej: "01", "02", "RM")
+  nombre varchar(100) [not null] // Nombre completo
+  nombre_corto varchar(50) // Nombre abreviado
+  activa boolean [default: true]
+  created_at timestamp [default: `now()`]
+}
+
+Table provincias {
+  id integer [primary key, increment]
+  codigo varchar(5) [not null, unique] // Código oficial
+  nombre varchar(100) [not null]
+  region_id integer [ref: > regiones.id]
+  activa boolean [default: true]
+  created_at timestamp [default: `now()`]
+}
+
+Table comunas {
+  id integer [primary key, increment]
+  codigo varchar(5) [not null, unique] // Código oficial
+  nombre varchar(100) [not null]
+  provincia_id integer [ref: > provincias.id]
+  region_id integer [ref: > regiones.id] // Referencia directa para consultas más rápidas
+  activa boolean [default: true]
+  created_at timestamp [default: `now()`]
+}
+
+Table etapas_registro {
+  id integer [primary key, increment]
+  
+  etapa_tipo_id integer [ref: > etapas_tipo.id]
+  
+  // Información de la etapa
+  tipo_iniciativa_id integer [ref: > tipos_iniciativas.id]
+  tipo_obra_id integer [ref: > tipos_obras.id]
+
+  
+  region_id integer [ref: > regiones.id]
+  provincia_id integer [ref: > provincias.id]
+  comuna_id integer [ref: > comunas.id]
+  volumen text // Descripción del volumen de obra
+  
+  // Información financiera
+  presupuesto_oficial decimal(18,2)
+  
+  // Fechas importantes
+  fecha_llamado_licitacion date
+  fecha_recepcion_ofertas_tecnicas date
+  fecha_apertura_ofertas_economicas date
+  fecha_inicio_concesion date
+  plazo_total_meses integer
+  
+  // Información de la adjudicación
+  decreto_adjudicacion text
+  sociedad_concesionaria varchar(255)
+  
+  // Inspector fiscal asignado
+  inspector_fiscal_id integer [ref: > usuarios.id, null]
+  
+
+  // Auditoria
+  usuario_creador integer [ref: > usuarios.id]
+  fecha_creacion timestamp [default: `now()`]
+  fecha_actualizacion timestamp [default: `now()`]
+  activa boolean [default: true]
+}
+
+Table proyectos {
+id integer [primary key, increment]
+codigo_proyecto varchar(50) [not null, unique]
+etapa_registro_id integer [ref: > etapas_registro.id]
+carpeta_inicial json
+nombre varchar(255) [not null]
+estado varchar(50)
+fecha_inicio date
+fecha_termino date
+division_id integer [ref: > divisiones.id, null]
+departamento_id integer [ref: > departamentos.id, null]
+unidad_id integer [ref: > unidades.id, null]
+creado_por integer [ref: > usuarios.id]
+created_at timestamp [default: `now()`]
+}
+
+Table alertas {
+  id integer [primary key, increment]
+  proyecto_id integer [ref: > proyectos.id]
+  concesion_id integer [ref: > concesiones.id, null]
+  etapa_registro_id integer [ref: > etapas_registro.id, null]
+  documento_id uuid [ref: > documentos.id, null]
+  
+  tipo_alerta varchar(50) [not null] // vencimiento_documento, fecha_critica, presupuesto, estado_proyecto
+  descripcion text
+  
+  fecha_alerta timestamp [not null]
+  fecha_vencimiento timestamp [null] // Para alertas con fecha límite
+  
+  estado varchar(30) [default: 'activa'] // activa, vista, resolvada, descartada
+  automatica boolean [default: false] // Si fue generada automáticamente
+  
+  usuario_creador integer [ref: > usuarios.id]
+  usuario_asignado integer [ref: > usuarios.id, null] // A quién se asigna la alerta
+  
+  fecha_creacion timestamp [default: `now()`]
+  
+  notificacion_enviada boolean [default: false]
+  
+  activa boolean [default: true]
+}
+
+Table concesiones {
+id integer [primary key, increment]
+codigo_concesion varchar(50) [not null, unique]
+proyecto_id integer [ref: > proyectos.id]
+nombre varchar(255) [not null]
+descripcion text
+estado varchar(30)
+fecha_inicio date
+fecha_termino date
+tipo_obra varchar(100) // infraestructura vial, aeroportuaria, penitenciaria, etc.
+ubicacion varchar(255)
+created_at timestamp [default: `now()`]
+}
+
+Table obras_concesionadas {
+id integer [primary key, increment]
+concesion_id integer [ref: > concesiones.id]
+nombre varchar(255) [not null]
+descripcion text
+tipo_obra varchar(100)
+estado varchar(30)
+fecha_inicio date
+fecha_termino date
+ubicacion varchar(255)
+presupuesto decimal(18,2)
+}
+
+Table empresas {
+id integer [primary key, increment]
+rut varchar(12) [unique, not null]
+razon_social varchar(255) [not null]
+nombre_fantasia varchar(255)
+direccion text
+telefono varchar(20)
+email varchar(100)
+representante_legal varchar(255)
+activa boolean [default: true]
+created_at timestamp [default: `now()`]
+}
+
+Table asesores {
+id integer [primary key, increment]
+rut varchar(12) [unique, not null]
+nombre varchar(100) [not null]
+apellido varchar(100) [not null]
+especialidad varchar(100)
+telefono varchar(20)
+email varchar(100)
+activo boolean [default: true]
+created_at timestamp [default: `now()`]
+}
+
+Table externos_involucrados {
+id integer [primary key, increment]
+proyecto_id integer [ref: > proyectos.id]
+empresa_id integer [ref: > empresas.id, null]
+asesor_id integer [ref: > asesores.id, null]
+tipo_participacion varchar(50) // Contratista, Consultor, Asesor, etc.
+rol varchar(100)
+fecha_inicio date
+fecha_termino date
+activo boolean [default: true]
+}
+
+Table fechas_clave {
+id integer [primary key, increment]
+proyecto_id integer [ref: > proyectos.id, null]
+concesion_id integer [ref: > concesiones.id, null]
+tipo_fecha varchar(50) // licitacion, adjudicacion, inicio_concesion, puesta_servicio
+fecha_programada date
+fecha_real date
+descripcion text
+es_hito_critico boolean [default: false]
+}
+
+Table inspector_fiscal {
+id integer [primary key, increment]
+proyecto_id integer [ref: > proyectos.id]
+usuario_id integer [ref: > usuarios.id]
+fecha_asignacion date
+fecha_termino date
+activo boolean [default: true]
+observaciones text
+}
+
+Table registro_documental {
+id integer [primary key, increment]
+documento_id integer [ref: > documentos.id]
+descripcion text
+fecha_comprometida date
+fecha_cumplimiento date
+cumplido boolean [default: false]
+alerta_30 boolean [default: false]
+alerta_15 boolean [default: false]
+alerta_5 boolean [default: false]
+}
+
+Table carpetas {
+  id integer [primary key, increment]
+  nombre varchar(255) [not null]
+  descripcion text
+  carpeta_padre_id integer [ref: > carpetas.id, null] // Para jerarquía
+  
+  proyecto_id integer [ref: > proyectos.id, null]
+  concesion_id integer [ref: > concesiones.id, null]
+  division_id integer [ref: > divisiones.id, null]
+  departamento_id integer [ref: > departamentos.id, null]
+  
+  ruta_fisica varchar(500) // Ruta base en el sistema de archivos
+  orden_visualizacion integer [default: 0]
+  
+  usuario_creador integer [ref: > usuarios.id]
+  fecha_creacion timestamp [default: `now()`]
+  fecha_actualizacion timestamp [default: `now()`]
+  
+  max_tamaño_mb integer [null] // Límite de tamaño para la carpeta
+  tipos_archivo_permitidos text[] // ['pdf', 'docx', 'xlsx']
+}
+
+
+
+Table documentos {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  nombre_archivo varchar(255) [not null]
+  extension varchar(10)
+  tamano bigint
+  tipo_mime varchar(100)
+  fecha_creacion timestamp [default: `now()`]
+  usuario_creador integer [ref: > usuarios.id]
+  descripcion text
+  categoria varchar(100)
+  estado varchar(30)
+  version varchar(10)
+  archivo_relacionado uuid [ref: > documentos.id]
+  
+  carpeta_id integer [ref: > carpetas.id, not null]
+  
+  ruta_storage text // Se construye: ruta_base_carpeta + id_documento + extension
+  hash_integridad varchar(255)
+  etiquetas text[]
+  fecha_ultima_actualizacion timestamp [default: `now()`]
+  
+  proyecto_id integer [ref: > proyectos.id, null]
+  subido_por integer [ref: > usuarios.id]
+  metadata jsonb
+}
+
+
+Table carpetas_auditoria {
+  id integer [primary key, increment]
+  carpeta_id integer [ref: > carpetas.id]
+  usuario_id integer [ref: > usuarios.id]
+  accion varchar(50) // crear, mover, renombrar, eliminar, cambiar_permisos
+  detalle_anterior jsonb
+  detalle_nuevo jsonb
+  fecha timestamp [default: `now()`]
+}
+
+
+Table archivo_historial {
+id integer [primary key, increment]
+archivo_id uuid [ref: > documentos.id]
+usuario_id integer [ref: > usuarios.id]
+accion varchar(50) // Creación, Actualización, Eliminación, Cambio de versión
+descripcion text
+fecha timestamp [default: `now()`]
+version_anterior text
+version_nueva text
+}
+
+Table auditorias {
+id integer [primary key, increment]
+usuario_id integer [ref: > usuarios.id]
+accion varchar(100)
+entidad varchar(50)
+entidad_id integer
+descripcion text
+fecha timestamp [default: `now()`]
+}

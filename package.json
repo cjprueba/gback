@@ -4,6 +4,9 @@
   "scripts": {
     "dev": "npx tsx watch -r tsconfig-paths/register src/http/server.ts"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "dependencies": {
     "@fastify/cors": "^11.0.1",
     "@fastify/jwt": "^9.1.0",

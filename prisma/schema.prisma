@@ -8,6 +8,7 @@ Eliminar y volver a cargar base de datos
 # eliminar migrations
 # npx prisma migrate reset
 # npx prisma migrate dev --name add_unidad_division_relation - para agregar nombre a la modificacion
+npx prisma db seed
 */
 // para correr prisma - npx prisma migrate dev --name init
 
@@ -147,23 +148,85 @@ model etapas_tipo {
   etapas_registro etapas_registro[]
 }
 
+model tipos_iniciativas {
+  id    Int    @id @default(autoincrement())
+  nombre String @db.VarChar(100)
+  
+  // Relaciones inversas
+  etapas_registro etapas_registro[]
+}
+
+model tipos_obras {
+  id    Int    @id @default(autoincrement())
+  nombre String @db.VarChar(100)
+  
+  // Relaciones inversas
+  etapas_registro etapas_registro[]
+}
+
+model regiones {
+  id          Int     @id @default(autoincrement())
+  codigo      String  @unique @db.VarChar(5)
+  nombre      String  @db.VarChar(100)
+  nombre_corto String? @db.VarChar(50)
+  activa      Boolean @default(true)
+  created_at  DateTime @default(now())
+  
+  // Relaciones inversas
+  provincias provincias[]
+  comunas    comunas[]
+  etapas_registro etapas_registro[]
+}
+
+model provincias {
+  id          Int     @id @default(autoincrement())
+  codigo      String  @unique @db.VarChar(5)
+  nombre      String  @db.VarChar(100)
+  region_id   Int
+  activa      Boolean @default(true)
+  created_at  DateTime @default(now())
+  
+  // Relaciones
+  region regiones @relation(fields: [region_id], references: [id])
+  
+  // Relaciones inversas
+  comunas comunas[]
+  etapas_registro etapas_registro[]
+}
+
+model comunas {
+  id          Int     @id @default(autoincrement())
+  codigo      String  @unique @db.VarChar(5)
+  nombre      String  @db.VarChar(100)
+  provincia_id Int
+  region_id   Int
+  activa      Boolean @default(true)
+  created_at  DateTime @default(now())
+  
+  // Relaciones
+  provincia provincias @relation(fields: [provincia_id], references: [id])
+  region regiones @relation(fields: [region_id], references: [id])
+  etapas_registro etapas_registro[]
+}
+
+// Modificación de etapas_registro para usar las nuevas tablas
 model etapas_registro {
   id                                    Int       @id @default(autoincrement())
   etapa_tipo_id                         Int
   
   // Información de la etapa
-  tipo_iniciativa                       String    @db.VarChar(20)
-  tipo_obra                             String?   @db.VarChar(100)
-  region                                String?   @db.VarChar(50)
-  provincia                             String?   @db.VarChar(50)
-  comuna                                String?   @db.VarChar(50)
+  tipo_iniciativa_id                    Int?
+  tipo_obra_id                          Int?
+  region_id                             Int?
+  provincia_id                          Int?
+  comuna_id                             Int?
   volumen                               String?
   
   // Información financiera
-  presupuesto_oficial                   String?   @db.VarChar(100)
+  presupuesto_oficial                   String?
   
   // Fechas importantes
-  fecha_llamado_licitacion                      DateTime? @db.Date
+  fecha_llamado_licitacion              DateTime? @db.Date
   fecha_recepcion_ofertas_tecnicas      DateTime? @db.Date
   fecha_apertura_ofertas_economicas     DateTime? @db.Date
   fecha_inicio_concesion                DateTime? @db.Date
@@ -171,11 +234,10 @@ model etapas_registro {
   
   // Información de la adjudicación
   decreto_adjudicacion                  String?
-  sociedad_concesionaria                String?   @db.VarChar(255)
+  sociedad_concesionaria               String?   @db.VarChar(255)
   
   // Inspector fiscal asignado
   inspector_fiscal_id                   Int?
-  
   
   // Auditoria
   usuario_creador                       Int
@@ -185,8 +247,13 @@ model etapas_registro {
 
   // Relaciones
   etapa_tipo         etapas_tipo @relation(fields: [etapa_tipo_id], references: [id])
-  inspector_fiscal   usuarios?   @relation("InspectorFiscal", fields: [inspector_fiscal_id], references: [id])
-  usuario_creador_rel usuarios   @relation("UsuarioCreadorEtapa", fields: [usuario_creador], references: [id])
+  tipo_iniciativa    tipos_iniciativas? @relation(fields: [tipo_iniciativa_id], references: [id])
+  tipo_obra         tipos_obras? @relation(fields: [tipo_obra_id], references: [id])
+  region            regiones? @relation(fields: [region_id], references: [id])
+  provincia         provincias? @relation(fields: [provincia_id], references: [id])
+  comuna            comunas? @relation(fields: [comuna_id], references: [id])
+  inspector_fiscal   usuarios? @relation("InspectorFiscal", fields: [inspector_fiscal_id], references: [id])
+  usuario_creador_rel usuarios @relation("UsuarioCreadorEtapa", fields: [usuario_creador], references: [id])
 
   // Relaciones inversas
   proyectos proyectos[]
