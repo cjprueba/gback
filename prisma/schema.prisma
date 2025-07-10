@@ -130,13 +130,14 @@ model etapas_tipo {
   
   // Información financiera
   presupuesto_oficial Boolean   @default(true)
+  valor_referencia Boolean   @default(true)
   
   // Fechas importantes
   fecha_llamado_licitacion Boolean   @default(true)
   fecha_recepcion_ofertas_tecnicas Boolean   @default(true)
   fecha_apertura_ofertas_economicas Boolean   @default(true)
   fecha_inicio_concesion Boolean   @default(true)
-  plazo_total_meses Boolean   @default(true)
+  plazo_total_concesion Boolean   @default(true)
   
   // Información de la adjudicación
   decreto_adjudicacion Boolean   @default(true)
@@ -237,6 +238,7 @@ model etapas_registro {
   
   // Información financiera
   presupuesto_oficial                   String?
+  valor_referencia                      String?   @db.VarChar(255)
   
   // Fechas importantes
   fecha_llamado_licitacion              DateTime? @db.Date
@@ -248,7 +250,7 @@ model etapas_registro {
   sociedad_concesionaria               String?   @db.VarChar(255)
 
   fecha_inicio_concesion                DateTime? @db.Date
-  plazo_total_meses                     String?
+  plazo_total_concesion                 String?
   
   // Inspector fiscal asignado - se asgina con usuario?
   inspector_fiscal_id                   Int?

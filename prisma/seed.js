@@ -216,21 +216,21 @@ async function main() {
         nombre: 'Concesiones en Construcción', 
         descripcion: '-',
         fecha_inicio_concesion: true,
-        plazo_total_meses: true,
+        plazo_total_concesion: true,
         inspector_fiscal_id: true
       },
       { 
         nombre: 'Concesiones en Operación y Construcción', 
         descripcion: '-',
         fecha_inicio_concesion: true,
-        plazo_total_meses: true,
+        plazo_total_concesion: true,
         inspector_fiscal_id: true
       },
       { 
         nombre: 'Concesiones Finalizadas', 
         descripcion: '-',
         fecha_inicio_concesion: true,
-        plazo_total_meses: true,
+        plazo_total_concesion: true,
         inspector_fiscal_id: true
       }
     ]

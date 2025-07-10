@@ -31,6 +31,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             comuna_id: z.number().optional(),
             volumen: z.string().optional(),
             presupuesto_oficial: z.string().optional(),
+            valor_referencia: z.string().max(255).optional(),
             fecha_llamado_licitacion: z.string().datetime().optional(),
             fecha_recepcion_ofertas_tecnicas: z.string().datetime().optional(),
             fecha_apertura_ofertas_economicas: z.string().datetime().optional(),
@@ -39,7 +40,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             sociedad_concesionaria: z.string().max(255).optional(),
 
             fecha_inicio_concesion: z.string().datetime().optional(),
-            plazo_total_meses: z.string().optional(),
+            plazo_total_concesion: z.string().optional(),
             
             inspector_fiscal_id: z.number().optional(),
             usuario_creador: z.number()
@@ -202,7 +203,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 decreto_adjudicacion: z.string().nullable(),
                 sociedad_concesionaria: z.string().nullable(),
                 fecha_inicio_concesion: z.date().nullable(),
-                plazo_total_meses: z.string().nullable(),
+                plazo_total_concesion: z.string().nullable(),
                 inspector_fiscal: z.object({
                   id: z.number(),
                   nombre_completo: z.string().nullable(),
