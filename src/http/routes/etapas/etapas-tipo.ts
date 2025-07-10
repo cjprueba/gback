@@ -20,7 +20,7 @@ const createEtapaTipoSchema = z.object({
   fecha_recepcion_ofertas_tecnicas: z.boolean().default(true),
   fecha_apertura_ofertas_economicas: z.boolean().default(true),
   fecha_inicio_concesion: z.boolean().default(true),
-  plazo_total_meses: z.boolean().default(true),
+  plazo_total_concesion: z.boolean().default(true),
   decreto_adjudicacion: z.boolean().default(true),
   sociedad_concesionaria: z.boolean().default(true),
   inspector_fiscal_id: z.boolean().default(true)
@@ -68,6 +68,59 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     };
   });
 
+  server.get('/etapas-tipo-obra', {
+    schema: {
+      tags: ['Etapas Tipo'],
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.array(z.object({
+            id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            tipos_obra: z.array(z.object({
+              id: z.number(),
+              nombre: z.string()
+            }))
+          }))
+        })
+      }
+    }
+  }, async () => {
+    const etapasTipo = await prisma.etapas_tipo.findMany({
+      include: {
+        etapas_tipo_obras: {
+          include: {
+            tipo_obra: {
+              select: {
+                id: true,
+                nombre: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Transform the data to match the expected response format
+    const etapasTipoConObras = etapasTipo.map(etapa => ({
+      id: etapa.id,
+      nombre: etapa.nombre,
+      descripcion: etapa.descripcion,
+      tipos_obra: etapa.etapas_tipo_obras.map(etapaTipoObra => ({
+        id: etapaTipoObra.tipo_obra.id,
+        nombre: etapaTipoObra.tipo_obra.nombre
+      }))
+    }));
+    
+    return {
+      success: true,
+      message: 'Lista de tipos de etapa con sus tipos de obra obtenida exitosamente',
+      data: etapasTipoConObras
+    };
+  });
+
   // POST /etapas-tipo - Crear nuevo tipo de etapa
   server.post('/etapas-tipo', {
     schema: {
@@ -103,7 +156,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas,
       fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas,
       fecha_inicio_concesion: body.fecha_inicio_concesion,
-      plazo_total_meses: body.plazo_total_meses,
+      plazo_total_concesion: body.plazo_total_concesion,
       decreto_adjudicacion: body.decreto_adjudicacion,
       sociedad_concesionaria: body.sociedad_concesionaria,
       inspector_fiscal_id: body.inspector_fiscal_id
@@ -151,6 +204,87 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       success: true,
       message: 'Tipo de etapa actualizado exitosamente',
       data: etapaTipoActualizada
+    };
+  });
+
+  // GET /etapas-tipo/etapa/:etapaId - Obtener tipo de etapa por etapa ID
+  server.get('/etapas-tipo/etapa/:etapaId', {
+    schema: {
+      tags: ['Etapas Tipo'],
+      params: z.object({
+        etapaId: z.string().regex(/^\d+$/, 'Etapa ID debe ser un número válido').transform(Number)
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            tipo_iniciativa: z.boolean(),
+            tipo_obra: z.boolean(),
+            region: z.boolean(),
+            provincia: z.boolean(),
+            comuna: z.boolean(),
+            volumen: z.boolean(),
+            presupuesto_oficial: z.boolean(),
+            fecha_llamado_licitacion: z.boolean(),
+            fecha_recepcion_ofertas_tecnicas: z.boolean(),
+            fecha_apertura_ofertas_economicas: z.boolean(),
+            fecha_inicio_concesion: z.boolean(),
+            plazo_total_concesion: z.boolean(),
+            decreto_adjudicacion: z.boolean(),
+            sociedad_concesionaria: z.boolean(),
+            inspector_fiscal_id: z.boolean()
+          })
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        })
+      }
+    }
+  }, async (request) => {
+    const { etapaId } = request.params;
+    
+    const etapa = await prisma.etapas_registro.findUnique({
+      where: { id: etapaId },
+      include: {
+        etapa_tipo: true
+      }
+    });
+    
+    if (!etapa) {
+      return {
+        success: false,
+        message: 'Etapa no encontrada'
+      };
+    }
+    
+    return {
+      success: true,
+      message: 'Tipo de etapa obtenido exitosamente',
+      data: {
+        id: etapa.etapa_tipo.id,
+        nombre: etapa.etapa_tipo.nombre,
+        descripcion: etapa.etapa_tipo.descripcion,
+        tipo_iniciativa: etapa.etapa_tipo.tipo_iniciativa,
+        tipo_obra: etapa.etapa_tipo.tipo_obra,
+        region: etapa.etapa_tipo.region,
+        provincia: etapa.etapa_tipo.provincia,
+        comuna: etapa.etapa_tipo.comuna,
+        volumen: etapa.etapa_tipo.volumen,
+        presupuesto_oficial: etapa.etapa_tipo.presupuesto_oficial,
+        fecha_llamado_licitacion: etapa.etapa_tipo.fecha_llamado_licitacion,
+        fecha_recepcion_ofertas_tecnicas: etapa.etapa_tipo.fecha_recepcion_ofertas_tecnicas,
+        fecha_apertura_ofertas_economicas: etapa.etapa_tipo.fecha_apertura_ofertas_economicas,
+        fecha_inicio_concesion: etapa.etapa_tipo.fecha_inicio_concesion,
+        plazo_total_concesion: etapa.etapa_tipo.plazo_total_concesion,
+        decreto_adjudicacion: etapa.etapa_tipo.decreto_adjudicacion,
+        sociedad_concesionaria: etapa.etapa_tipo.sociedad_concesionaria,
+        inspector_fiscal_id: etapa.etapa_tipo.inspector_fiscal_id
+      }
     };
   });
 

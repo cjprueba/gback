@@ -7,23 +7,24 @@ import { prisma } from '@/lib/prisma';
 const createEtapaSchema = z.object({
   etapa_tipo_id: z.number().int().min(1, 'ID de tipo de etapa es requerido'),
   
-  // Información de la etapa
-  tipo_iniciativa: z.string().max(20, 'Tipo de iniciativa no puede exceder 20 caracteres'),
-  tipo_obra: z.string().max(100, 'Tipo de obra no puede exceder 100 caracteres').optional(),
-  region: z.string().max(50, 'Región no puede exceder 50 caracteres').optional(),
-  provincia: z.string().max(50, 'Provincia no puede exceder 50 caracteres').optional(),
-  comuna: z.string().max(50, 'Comuna no puede exceder 50 caracteres').optional(),
+  // Información de la etapa - usando IDs en lugar de strings
+  tipo_iniciativa_id: z.number().int().min(1).optional(),
+  tipo_obra_id: z.number().int().min(1).optional(),
+  region_id: z.number().int().min(1).optional(),
+  provincia_id: z.number().int().min(1).optional(),
+  comuna_id: z.number().int().min(1).optional(),
   volumen: z.string().optional(),
   
   // Información financiera
   presupuesto_oficial: z.string().max(100, 'Presupuesto oficial debe ser mayor 0').optional(),
+  valor_referencia: z.string().max(255).optional(),
   
   // Fechas importantes - usando string que se convertirá a Date
   fecha_llamado_licitacion: z.string().datetime().optional(),
   fecha_recepcion_ofertas_tecnicas: z.string().datetime().optional(),
   fecha_apertura_ofertas_economicas: z.string().datetime().optional(),
   fecha_inicio_concesion: z.string().datetime().optional(),
-  plazo_total_meses: z.number().int().min(0, 'Plazo total debe ser mayor o igual a 0').optional(),
+  plazo_total_concesion: z.string().optional(),
   
   // Información de la adjudicación
   decreto_adjudicacion: z.string().optional(),
@@ -62,6 +63,11 @@ export  async function etapasRoutes(app: FastifyInstance) {
         where: { activa: true },
         include: {
           etapa_tipo: true,
+          tipo_iniciativa: true,
+          tipo_obra: true,
+          region: true,
+          provincia: true,
+          comuna: true,
           inspector_fiscal: {
             select: {
               id: true,
@@ -107,25 +113,64 @@ export  async function etapasRoutes(app: FastifyInstance) {
           data: z.object({
             id: z.number(),
             etapa_tipo_id: z.number(),
-            tipo_iniciativa: z.string(),
-            tipo_obra: z.string().nullable(),
-            region: z.string().nullable(),
-            provincia: z.string().nullable(),
-            comuna: z.string().nullable(),
+            tipo_iniciativa_id: z.number().nullable(),
+            tipo_obra_id: z.number().nullable(),
+            region_id: z.number().nullable(),
+            provincia_id: z.number().nullable(),
+            comuna_id: z.number().nullable(),
             volumen: z.string().nullable(),
             presupuesto_oficial: z.string().nullable(),
+            valor_referencia: z.string().nullable(),
             fecha_llamado_licitacion: z.date().nullable(),
             fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
             fecha_apertura_ofertas_economicas: z.date().nullable(),
             fecha_inicio_concesion: z.date().nullable(),
-            plazo_total_meses: z.number().nullable(),
+            plazo_total_concesion: z.string().nullable(),
             decreto_adjudicacion: z.string().nullable(),
             sociedad_concesionaria: z.string().nullable(),
             inspector_fiscal_id: z.number().nullable(),
             usuario_creador: z.number(),
             fecha_creacion: z.date(),
             fecha_actualizacion: z.date(),
-            activa: z.boolean()
+            activa: z.boolean(),
+            etapa_tipo: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              descripcion: z.string().nullable()
+            }),
+            tipo_iniciativa: z.object({
+              id: z.number(),
+              nombre: z.string()
+            }).nullable(),
+            tipo_obra: z.object({
+              id: z.number(),
+              nombre: z.string()
+            }).nullable(),
+            region: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              codigo: z.string()
+            }).nullable(),
+            provincia: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              codigo: z.string()
+            }).nullable(),
+            comuna: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              codigo: z.string()
+            }).nullable(),
+            inspector_fiscal: z.object({
+              id: z.number(),
+              correo_electronico: z.string().nullable(),
+              nombre_completo: z.string().nullable()
+            }).nullable(),
+            usuario_creador_rel: z.object({
+              id: z.number(),
+              correo_electronico: z.string().nullable(),
+              nombre_completo: z.string().nullable()
+            })
           }).optional()
         })
       }
@@ -138,6 +183,11 @@ export  async function etapasRoutes(app: FastifyInstance) {
         where: { id, activa: true },
         include: {
           etapa_tipo: true,
+          tipo_iniciativa: true,
+          tipo_obra: true,
+          region: true,
+          provincia: true,
+          comuna: true,
           inspector_fiscal: {
             select: {
               id: true,
@@ -190,18 +240,19 @@ export  async function etapasRoutes(app: FastifyInstance) {
           data: z.object({
             id: z.number(),
             etapa_tipo_id: z.number(),
-            tipo_iniciativa: z.string(),
-            tipo_obra: z.string().nullable(),
-            region: z.string().nullable(),
-            provincia: z.string().nullable(),
-            comuna: z.string().nullable(),
+            tipo_iniciativa_id: z.number().nullable(),
+            tipo_obra_id: z.number().nullable(),
+            region_id: z.number().nullable(),
+            provincia_id: z.number().nullable(),
+            comuna_id: z.number().nullable(),
             volumen: z.string().nullable(),
             presupuesto_oficial: z.string().nullable(),
+            valor_referencia: z.string().nullable(),
             fecha_llamado_licitacion: z.date().nullable(),
             fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
             fecha_apertura_ofertas_economicas: z.date().nullable(),
             fecha_inicio_concesion: z.date().nullable(),
-            plazo_total_meses: z.number().nullable(),
+            plazo_total_concesion: z.string().nullable(),
             decreto_adjudicacion: z.string().nullable(),
             sociedad_concesionaria: z.string().nullable(),
             inspector_fiscal_id: z.number().nullable(),
@@ -217,25 +268,40 @@ export  async function etapasRoutes(app: FastifyInstance) {
 
     try {
     const body = request.body;
-    const etapaData = {
+    
+    // Preparar los datos para la creación, convirtiendo fechas si están presentes
+    const etapaData: any = {
       etapa_tipo_id: body.etapa_tipo_id,
-      tipo_iniciativa: body.tipo_iniciativa,
-      tipo_obra: body.tipo_obra,
-      region: body.region,
-      provincia: body.provincia,
-      comuna: body.comuna,
+      tipo_iniciativa_id: body.tipo_iniciativa_id,
+      tipo_obra_id: body.tipo_obra_id,
+      region_id: body.region_id,
+      provincia_id: body.provincia_id,
+      comuna_id: body.comuna_id,
       volumen: body.volumen,
       presupuesto_oficial: body.presupuesto_oficial,
-      fecha_llamado_licitacion: body.fecha_llamado_licitacion,
-      fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas,
-      fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas,
-      fecha_inicio_concesion: body.fecha_inicio_concesion,
-      plazo_total_meses: body.plazo_total_meses,
+      valor_referencia: body.valor_referencia,
       decreto_adjudicacion: body.decreto_adjudicacion,
       sociedad_concesionaria: body.sociedad_concesionaria,
       inspector_fiscal_id: body.inspector_fiscal_id,
       usuario_creador: body.usuario_creador,
     };
+
+    // Convertir fechas si están presentes
+    if (body.fecha_llamado_licitacion) {
+      etapaData.fecha_llamado_licitacion = new Date(body.fecha_llamado_licitacion);
+    }
+    if (body.fecha_recepcion_ofertas_tecnicas) {
+      etapaData.fecha_recepcion_ofertas_tecnicas = new Date(body.fecha_recepcion_ofertas_tecnicas);
+    }
+    if (body.fecha_apertura_ofertas_economicas) {
+      etapaData.fecha_apertura_ofertas_economicas = new Date(body.fecha_apertura_ofertas_economicas);
+    }
+    if (body.fecha_inicio_concesion) {
+      etapaData.fecha_inicio_concesion = new Date(body.fecha_inicio_concesion);
+    }
+    if (body.plazo_total_concesion) {
+      etapaData.plazo_total_concesion = body.plazo_total_concesion;
+    }
     
       const nuevaEtapa = await prisma.etapas_registro.create({
         data: etapaData
@@ -278,17 +344,27 @@ export  async function etapasRoutes(app: FastifyInstance) {
     const body = request.body;
     
     try {
-      // Aquí iría la lógica para actualizar la etapa en la base de datos
-      // const etapaActualizada = await prisma.etapas_registro.update({
-      //   where: { id },
-      //   data: {
-      //     ...body,
-      //     fecha_llamado_licitacion: body.fecha_llamado_licitacion ? new Date(body.fecha_llamado_licitacion) : undefined,
-      //     fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas ? new Date(body.fecha_recepcion_ofertas_tecnicas) : undefined,
-      //     fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas ? new Date(body.fecha_apertura_ofertas_economicas) : undefined,
-      //     fecha_inicio_concesion: body.fecha_inicio_concesion ? new Date(body.fecha_inicio_concesion) : undefined,
-      //   }
-      // });
+      // Preparar los datos para la actualización
+      const updateData: any = { ...body };
+      
+      // Convertir fechas si están presentes
+      if (body.fecha_llamado_licitacion) {
+        updateData.fecha_llamado_licitacion = new Date(body.fecha_llamado_licitacion);
+      }
+      if (body.fecha_recepcion_ofertas_tecnicas) {
+        updateData.fecha_recepcion_ofertas_tecnicas = new Date(body.fecha_recepcion_ofertas_tecnicas);
+      }
+      if (body.fecha_apertura_ofertas_economicas) {
+        updateData.fecha_apertura_ofertas_economicas = new Date(body.fecha_apertura_ofertas_economicas);
+      }
+      if (body.fecha_inicio_concesion) {
+        updateData.fecha_inicio_concesion = new Date(body.fecha_inicio_concesion);
+      }
+      
+      const etapaActualizada = await prisma.etapas_registro.update({
+        where: { id },
+        data: updateData
+      });
       
       return {
         success: true,
@@ -328,11 +404,10 @@ export  async function etapasRoutes(app: FastifyInstance) {
     const { id } = request.params;
     
     try {
-      // Aquí iría la lógica para hacer soft delete de la etapa
-      // const etapaEliminada = await prisma.etapas_registro.update({
-      //   where: { id },
-      //   data: { activa: false }
-      // });
+      const etapaEliminada = await prisma.etapas_registro.update({
+        where: { id },
+        data: { activa: false }
+      });
       
       return {
         success: true,
