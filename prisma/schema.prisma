@@ -118,7 +118,8 @@ model etapas_tipo {
   id          Int    @id @default(autoincrement())
   nombre      String @db.VarChar(100)
   descripcion String?
-
+  carpetas_iniciales Json @default("{}")
+  
   // Información de la etapa
   tipo_iniciativa Boolean   @default(true)
   tipo_obra Boolean   @default(true)
@@ -146,6 +147,7 @@ model etapas_tipo {
 
   // Relaciones inversas
   etapas_registro etapas_registro[]
+  etapas_tipo_obras etapas_tipo_obras[]
 }
 
 model tipos_iniciativas {
@@ -162,6 +164,17 @@ model tipos_obras {
   
   // Relaciones inversas
   etapas_registro etapas_registro[]
+  etapas_tipo_obras etapas_tipo_obras[]
+}
+
+model etapas_tipo_obras {
+  id            Int       @id @default(autoincrement())
+  etapa_tipo_id Int
+  tipo_obra_id  Int
+  
+  // Relaciones
+  etapa_tipo etapas_tipo @relation(fields: [etapa_tipo_id], references: [id])
+  tipo_obra tipos_obras  @relation(fields: [tipo_obra_id], references: [id])
 }
 
 model regiones {
@@ -229,14 +242,15 @@ model etapas_registro {
   fecha_llamado_licitacion              DateTime? @db.Date
   fecha_recepcion_ofertas_tecnicas      DateTime? @db.Date
   fecha_apertura_ofertas_economicas     DateTime? @db.Date
-  fecha_inicio_concesion                DateTime? @db.Date
-  plazo_total_meses                     Int?
-  
+
   // Información de la adjudicación
   decreto_adjudicacion                  String?
   sociedad_concesionaria               String?   @db.VarChar(255)
+
+  fecha_inicio_concesion                DateTime? @db.Date
+  plazo_total_meses                     String?
   
-  // Inspector fiscal asignado
+  // Inspector fiscal asignado - se asgina con usuario?
   inspector_fiscal_id                   Int?
   
   // Auditoria
@@ -262,13 +276,9 @@ model etapas_registro {
 
 model proyectos {
   id                 Int       @id @default(autoincrement())
-  codigo_proyecto    String    @unique @db.VarChar(50)
   etapa_registro_id  Int
   carpeta_inicial    Json?
   nombre             String    @db.VarChar(255)
-  estado             String?   @db.VarChar(50)
-  fecha_inicio       DateTime? @db.Date
-  fecha_termino      DateTime? @db.Date
   division_id        Int?
   departamento_id    Int?
   unidad_id          Int?

@@ -68,6 +68,59 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     };
   });
 
+  server.get('/etapas-tipo-obra', {
+    schema: {
+      tags: ['Etapas Tipo'],
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.array(z.object({
+            id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            tipos_obra: z.array(z.object({
+              id: z.number(),
+              nombre: z.string()
+            }))
+          }))
+        })
+      }
+    }
+  }, async () => {
+    const etapasTipo = await prisma.etapas_tipo.findMany({
+      include: {
+        etapas_tipo_obras: {
+          include: {
+            tipo_obra: {
+              select: {
+                id: true,
+                nombre: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Transform the data to match the expected response format
+    const etapasTipoConObras = etapasTipo.map(etapa => ({
+      id: etapa.id,
+      nombre: etapa.nombre,
+      descripcion: etapa.descripcion,
+      tipos_obra: etapa.etapas_tipo_obras.map(etapaTipoObra => ({
+        id: etapaTipoObra.tipo_obra.id,
+        nombre: etapaTipoObra.tipo_obra.nombre
+      }))
+    }));
+    
+    return {
+      success: true,
+      message: 'Lista de tipos de etapa con sus tipos de obra obtenida exitosamente',
+      data: etapasTipoConObras
+    };
+  });
+
   // POST /etapas-tipo - Crear nuevo tipo de etapa
   server.post('/etapas-tipo', {
     schema: {

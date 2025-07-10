@@ -39,6 +39,24 @@ import { getTree } from './routes/resources/get-tree';
 import { etapasRoutes } from './routes/etapas/etapas';
 import { etapasTipoRoutes } from './routes/etapas/etapas-tipo';
 
+// provincias
+import { provinciaRoutes } from './routes/provincias/provincias';
+
+// comunas
+import { comunaRoutes } from './routes/comunas/comunas';
+
+// regiones
+import { regionesRoutes } from './routes/regiones/regiones';
+
+// tipos obra
+import { tiposObraRoutes } from './routes/tipos-obra/tipos-obra';
+
+// tipos iniciativas
+import { tiposIniciativas } from './routes/tipos-iniciativas/tipos-iniciativas';
+
+//proyectos
+import { proyectosRoutes } from './routes/proyectos/proyectos';
+
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
 app.setSerializerCompiler(serializerCompiler);
@@ -90,7 +108,12 @@ app.register(deleteFile);
 app.register(downloadFile);
 app.register(etapasRoutes);
 app.register(etapasTipoRoutes);
-
+app.register(provinciaRoutes);
+app.register(comunaRoutes);
+app.register(regionesRoutes);
+app.register(tiposObraRoutes);
+app.register(tiposIniciativas);
+app.register(proyectosRoutes);
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
 });

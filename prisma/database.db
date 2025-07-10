@@ -50,6 +50,8 @@ Table etapas_tipo {
   id integer [primary key, increment]
   nombre varchar(100) [not null]
   descripcion text
+
+  carpetas_iniciales json
   // Información de la etapa
   tipo_iniciativa boolean [not null] // Publica, Privada
   tipo_obra boolean [not null] // infraestructura vial, aeroportuaria, penitenciaria
