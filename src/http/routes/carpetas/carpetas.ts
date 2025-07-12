@@ -447,6 +447,9 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
 
         if (include_documentos === 'true') {
           include.documentos = {
+            where: {
+              eliminado: false
+            },
             select: {
               id: true,
               nombre_archivo: true
@@ -466,11 +469,14 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           take: limitNum
         });
 
-        // Calcular total de documentos si se incluye
+        // Calcular total de documentos si se incluye (excluyendo eliminados)
         if (include_documentos === 'true') {
           for (const carpeta of carpetas) {
             const totalDocs = await prisma.documentos.count({
-              where: { carpeta_id: carpeta.id }
+              where: { 
+                carpeta_id: carpeta.id,
+                eliminado: false
+              }
             });
             (carpeta as any).total_documentos = totalDocs;
           }
@@ -717,10 +723,13 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             take: parseInt(limit_carpetas)
           });
 
-          // Calcular estadísticas para cada carpeta hija
+          // Calcular estadísticas para cada carpeta hija (excluyendo documentos eliminados)
           for (const carpetaHija of carpetasHijas) {
             const totalDocs = await prisma.documentos.count({
-              where: { carpeta_id: carpetaHija.id }
+              where: { 
+                carpeta_id: carpetaHija.id,
+                eliminado: false
+              }
             });
 
             const totalCarpetasHijas = await prisma.carpetas.count({
@@ -738,11 +747,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           response.estadisticas.total_carpetas = carpetasHijas.length;
         }
 
-        // Obtener documentos si se solicita
+        // Obtener documentos si se solicita (excluyendo eliminados)
         if (include_documentos === 'true') {
           const documentos = await prisma.documentos.findMany({
             where: {
-              carpeta_id: parseInt(id)
+              carpeta_id: parseInt(id),
+              eliminado: false
             },
             orderBy: {
               [sort_documentos]: sort_order

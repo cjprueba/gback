@@ -116,6 +116,7 @@ model etapas_tipo {
   id          Int    @id @default(autoincrement())
   nombre      String @db.VarChar(100)
   descripcion String?
+  color       String? @db.VarChar(7)
   carpetas_iniciales Json @default("{}")
   
   // Información de la etapa
@@ -544,6 +545,7 @@ model documentos {
   proyecto_id                 Int?
   subido_por                  Int
   metadata                    Json?
+  eliminado                   Boolean   @default(false)
 
   // Relaciones
   carpeta             carpetas   @relation(fields: [carpeta_id], references: [id])

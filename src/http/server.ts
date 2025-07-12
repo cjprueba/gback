@@ -30,10 +30,10 @@ import { createUnidad } from './routes/unidad/create';
 import { registerUser } from './routes/user/register';
 
 // resources
-import { uploadFile } from './routes/resources/upload-file';
-import { deleteFile } from './routes/resources/delete-file';
-import { downloadFile } from './routes/resources/download-file';
-import { getTree } from './routes/resources/get-tree';
+//import { uploadFile } from './routes/resources/upload-file';
+//import { deleteFile } from './routes/resources/delete-file';
+//import { downloadFile } from './routes/resources/download-file';
+//import { getTree } from './routes/resources/get-tree';
 
 // etapas
 import { etapasRoutes } from './routes/etapas/etapas';
@@ -103,15 +103,15 @@ app.register(fastifyCors);
 app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
-app.register(uploadFile);
-app.register(getTree);
+//app.register(uploadFile);
+//app.register(getTree);
 app.register(createProfile);
 app.register(createDivision);
 app.register(createDepartamento);
 app.register(createUnidad);
 app.register(registerUser);
-app.register(deleteFile);
-app.register(downloadFile);
+//app.register(deleteFile);
+//app.register(downloadFile);
 app.register(etapasRoutes);
 app.register(etapasTipoRoutes);
 app.register(provinciaRoutes);
