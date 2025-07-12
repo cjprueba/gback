@@ -57,6 +57,12 @@ import { tiposIniciativas } from './routes/tipos-iniciativas/tipos-iniciativas';
 //proyectos
 import { proyectosRoutes } from './routes/proyectos/proyectos';
 
+//carpetas
+import { carpetasRoutes } from './routes/carpetas/carpetas';
+
+//documentos
+import { documentosRoutes } from './routes/documentos/documentos';
+
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
 app.setSerializerCompiler(serializerCompiler);
@@ -114,6 +120,8 @@ app.register(regionesRoutes);
 app.register(tiposObraRoutes);
 app.register(tiposIniciativas);
 app.register(proyectosRoutes);
+app.register(carpetasRoutes);
+app.register(documentosRoutes);
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
 });
