@@ -18,6 +18,7 @@ const createEtapaSchema = z.object({
   // Información financiera
   presupuesto_oficial: z.string().max(100, 'Presupuesto oficial debe ser mayor 0').optional(),
   valor_referencia: z.string().max(255).optional(),
+  bip: z.string().optional(),
   
   // Fechas importantes - usando string que se convertirá a Date
   fecha_llamado_licitacion: z.string().datetime().optional(),
@@ -280,6 +281,7 @@ export  async function etapasRoutes(app: FastifyInstance) {
       volumen: body.volumen,
       presupuesto_oficial: body.presupuesto_oficial,
       valor_referencia: body.valor_referencia,
+      bip: body.bip,
       decreto_adjudicacion: body.decreto_adjudicacion,
       sociedad_concesionaria: body.sociedad_concesionaria,
       inspector_fiscal_id: body.inspector_fiscal_id,

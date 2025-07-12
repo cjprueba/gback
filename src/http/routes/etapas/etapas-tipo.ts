@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 const createEtapaTipoSchema = z.object({
   nombre: z.string().min(1, 'Nombre es requerido').max(100, 'Nombre no puede exceder 100 caracteres'),
   descripcion: z.string().optional(),
+  color: z.string().optional(),
   
   // Campos booleanos para configurar qué información se requiere
   tipo_iniciativa: z.boolean().default(true),
@@ -16,6 +17,7 @@ const createEtapaTipoSchema = z.object({
   comuna: z.boolean().default(true),
   volumen: z.boolean().default(true),
   presupuesto_oficial: z.boolean().default(true),
+  bip: z.boolean().default(true),
   fecha_llamado_licitacion: z.boolean().default(true),
   fecha_recepcion_ofertas_tecnicas: z.boolean().default(true),
   fecha_apertura_ofertas_economicas: z.boolean().default(true),
@@ -53,7 +55,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
           data: z.array(z.object({
             id: z.number(),
             nombre: z.string(),
-            descripcion: z.string().nullable()
+            descripcion: z.string().nullable(),
+            color: z.string().nullable()
           }))
         })
       }
@@ -79,6 +82,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             id: z.number(),
             nombre: z.string(),
             descripcion: z.string().nullable(),
+            color: z.string().nullable(),
             tipos_obra: z.array(z.object({
               id: z.number(),
               nombre: z.string()
@@ -108,6 +112,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       id: etapa.id,
       nombre: etapa.nombre,
       descripcion: etapa.descripcion,
+      color: etapa.color,
       tipos_obra: etapa.etapas_tipo_obras.map(etapaTipoObra => ({
         id: etapaTipoObra.tipo_obra.id,
         nombre: etapaTipoObra.tipo_obra.nombre
@@ -133,7 +138,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
           data: z.object({
             id: z.number(),
             nombre: z.string(),
-            descripcion: z.string().nullable()
+            descripcion: z.string().nullable(),
+            color: z.string().nullable()
           })
         })
       }
@@ -145,6 +151,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     const etapaTipoData = {
       nombre: body.nombre,
       descripcion: body.descripcion || null,
+      color: body.color || null,
       tipo_iniciativa: body.tipo_iniciativa,
       tipo_obra: body.tipo_obra,
       region: body.region,
@@ -152,6 +159,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       comuna: body.comuna,
       volumen: body.volumen,
       presupuesto_oficial: body.presupuesto_oficial,
+      bip: body.bip,
       fecha_llamado_licitacion: body.fecha_llamado_licitacion,
       fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas,
       fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas,
@@ -186,7 +194,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
           data: z.object({
             id: z.number(),
             nombre: z.string(),
-            descripcion: z.string().nullable()
+            descripcion: z.string().nullable(),
+            color: z.string().nullable()
           })
         })
       }
@@ -218,26 +227,28 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         200: z.object({
           success: z.boolean(),
           message: z.string(),
-          data: z.object({
-            id: z.number(),
-            nombre: z.string(),
-            descripcion: z.string().nullable(),
-            tipo_iniciativa: z.boolean(),
-            tipo_obra: z.boolean(),
-            region: z.boolean(),
-            provincia: z.boolean(),
-            comuna: z.boolean(),
-            volumen: z.boolean(),
-            presupuesto_oficial: z.boolean(),
-            fecha_llamado_licitacion: z.boolean(),
-            fecha_recepcion_ofertas_tecnicas: z.boolean(),
-            fecha_apertura_ofertas_economicas: z.boolean(),
-            fecha_inicio_concesion: z.boolean(),
-            plazo_total_concesion: z.boolean(),
-            decreto_adjudicacion: z.boolean(),
-            sociedad_concesionaria: z.boolean(),
-            inspector_fiscal_id: z.boolean()
-          })
+                data: z.object({
+        id: z.number(),
+        nombre: z.string(),
+        descripcion: z.string().nullable(),
+        color: z.string().nullable(),
+        tipo_iniciativa: z.boolean(),
+        tipo_obra: z.boolean(),
+        bip: z.boolean(),
+        region: z.boolean(),
+        provincia: z.boolean(),
+        comuna: z.boolean(),
+        volumen: z.boolean(),
+        presupuesto_oficial: z.boolean(),
+        fecha_llamado_licitacion: z.boolean(),
+        fecha_recepcion_ofertas_tecnicas: z.boolean(),
+        fecha_apertura_ofertas_economicas: z.boolean(),
+        fecha_inicio_concesion: z.boolean(),
+        plazo_total_concesion: z.boolean(),
+        decreto_adjudicacion: z.boolean(),
+        sociedad_concesionaria: z.boolean(),
+        inspector_fiscal_id: z.boolean()
+      })
         }),
         404: z.object({
           success: z.boolean(),
@@ -269,8 +280,10 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         id: etapa.etapa_tipo.id,
         nombre: etapa.etapa_tipo.nombre,
         descripcion: etapa.etapa_tipo.descripcion,
+        color: etapa.etapa_tipo.color,
         tipo_iniciativa: etapa.etapa_tipo.tipo_iniciativa,
         tipo_obra: etapa.etapa_tipo.tipo_obra,
+        bip: etapa.etapa_tipo.bip,
         region: etapa.etapa_tipo.region,
         provincia: etapa.etapa_tipo.provincia,
         comuna: etapa.etapa_tipo.comuna,

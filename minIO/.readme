@@ -2,5 +2,5 @@ Para desplegar
 - Primero desplegar oc apply -f minio-openshift.yml
 - Segundo desplegar oc apply -f minio-pvc.yml
 - Tercero desplegar oc apply -f minio-service.yml 
-- Cuarto desplegar oc apply -f mino-route.yml 
+- Cuarto desplegar oc apply -f minio-route.yml 
 - Cuarto oc port-forward svc/minio 9000:9000

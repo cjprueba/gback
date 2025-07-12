@@ -75,7 +75,6 @@ model divisiones {
   departamentos departamentos[]
   unidades unidades[]
   proyectos     proyectos[]
-  carpetas      carpetas[]
 }
 
 model departamentos {
@@ -93,7 +92,6 @@ model departamentos {
   usuarios  usuarios[]
   unidades  unidades[]
   proyectos proyectos[]
-  carpetas  carpetas[]
 }
 
 model unidades {
@@ -118,6 +116,7 @@ model etapas_tipo {
   id          Int    @id @default(autoincrement())
   nombre      String @db.VarChar(100)
   descripcion String?
+  color       String? @db.VarChar(7)
   carpetas_iniciales Json @default("{}")
   
   // Información de la etapa
@@ -131,6 +130,7 @@ model etapas_tipo {
   // Información financiera
   presupuesto_oficial Boolean   @default(true)
   valor_referencia Boolean   @default(true)
+  bip Boolean   @default(true)
   
   // Fechas importantes
   fecha_llamado_licitacion Boolean   @default(true)
@@ -220,6 +220,8 @@ model comunas {
   // Relaciones
   provincia provincias @relation(fields: [provincia_id], references: [id])
   region regiones @relation(fields: [region_id], references: [id])
+  
+  // Relaciones inversas
   etapas_registro etapas_registro[]
 }
 
@@ -227,6 +229,7 @@ model comunas {
 model etapas_registro {
   id                                    Int       @id @default(autoincrement())
   etapa_tipo_id                         Int
+  proyecto_id                           Int
   
   // Información de la etapa
   tipo_iniciativa_id                    Int?
@@ -239,6 +242,7 @@ model etapas_registro {
   // Información financiera
   presupuesto_oficial                   String?
   valor_referencia                      String?   @db.VarChar(255)
+  bip                                   String?
   
   // Fechas importantes
   fecha_llamado_licitacion              DateTime? @db.Date
@@ -263,6 +267,7 @@ model etapas_registro {
 
   // Relaciones
   etapa_tipo         etapas_tipo @relation(fields: [etapa_tipo_id], references: [id])
+  proyecto           proyectos @relation(fields: [proyecto_id], references: [id])
   tipo_iniciativa    tipos_iniciativas? @relation(fields: [tipo_iniciativa_id], references: [id])
   tipo_obra         tipos_obras? @relation(fields: [tipo_obra_id], references: [id])
   region            regiones? @relation(fields: [region_id], references: [id])
@@ -272,13 +277,11 @@ model etapas_registro {
   usuario_creador_rel usuarios @relation("UsuarioCreadorEtapa", fields: [usuario_creador], references: [id])
 
   // Relaciones inversas
-  proyectos proyectos[]
   alertas   alertas[]
 }
 
 model proyectos {
   id                 Int       @id @default(autoincrement())
-  etapa_registro_id  Int
   carpeta_inicial    Json?
   nombre             String    @db.VarChar(255)
   division_id        Int?
@@ -287,14 +290,23 @@ model proyectos {
   creado_por         Int
   created_at         DateTime  @default(now())
 
+  // Campos para manejo de S3
+  s3_bucket_name     String?   @db.VarChar(100)
+  s3_root_path       String?   @db.VarChar(500)
+  s3_folder_created  Boolean   @default(false)
+  
+  // Información de la carpeta raíz del proyecto
+  carpeta_raiz_id    Int?
+  
   // Relaciones
-  etapa_registro etapas_registro @relation(fields: [etapa_registro_id], references: [id])
   division       divisiones?     @relation(fields: [division_id], references: [id])
   departamento   departamentos?  @relation(fields: [departamento_id], references: [id])
   unidad         unidades?       @relation(fields: [unidad_id], references: [id])
   creador        usuarios        @relation("UsuarioCreador", fields: [creado_por], references: [id])
+  carpeta_raiz   carpetas?       @relation("ProyectoCarpetaRaiz", fields: [carpeta_raiz_id], references: [id])
 
   // Relaciones inversas
+  etapas_registro              etapas_registro[]
   concesiones              concesiones[]
   externos_involucrados    externos_involucrados[]
   fechas_clave            fechas_clave[]
@@ -357,7 +369,6 @@ model concesiones {
   // Relaciones inversas
   obras_concesionadas obras_concesionadas[]
   fechas_clave       fechas_clave[]
-  carpetas           carpetas[]
   alertas            alertas[]
 }
 
@@ -476,32 +487,35 @@ model carpetas {
   carpeta_padre_id            Int?
   
   proyecto_id                 Int?
-  concesion_id                Int?
-  division_id                 Int?
-  departamento_id             Int?
   
-  ruta_fisica                 String   @db.VarChar(500)
+  // Información de S3
+  s3_path                     String   @db.VarChar(500)
+  s3_bucket_name              String?  @db.VarChar(100)
+  s3_created                  Boolean  @default(false)
+  
+  // Información de permisos y configuración
   orden_visualizacion         Int      @default(0)
+  max_tamaño_mb               Int?
+  tipos_archivo_permitidos    String[]
+  permisos_lectura            String[] @default([])
+  permisos_escritura          String[] @default([])
   
+  // Metadatos
   usuario_creador             Int
   fecha_creacion              DateTime @default(now())
   fecha_actualizacion         DateTime @default(now()) @updatedAt
-  
-  max_tamaño_mb               Int?
-  tipos_archivo_permitidos    String[]
+  activa                      Boolean  @default(true)
 
   // Relaciones
   carpeta_padre   carpetas?     @relation("CarpetaHijos", fields: [carpeta_padre_id], references: [id])
   proyecto        proyectos?    @relation(fields: [proyecto_id], references: [id])
-  concesion       concesiones?  @relation(fields: [concesion_id], references: [id])
-  division        divisiones?   @relation(fields: [division_id], references: [id])
-  departamento    departamentos? @relation(fields: [departamento_id], references: [id])
   creador         usuarios      @relation(fields: [usuario_creador], references: [id])
 
   // Relaciones inversas
   carpetas_hijas        carpetas[]             @relation("CarpetaHijos")
   documentos            documentos[]
   carpetas_auditoria    carpetas_auditoria[]
+  proyectos_carpeta_raiz proyectos[]           @relation("ProyectoCarpetaRaiz")
 }
 
 model documentos {
@@ -520,7 +534,10 @@ model documentos {
   
   carpeta_id                  Int
   
-  ruta_storage                String?
+  // Información de S3
+  s3_path                     String?   @db.VarChar(500)
+  s3_bucket_name              String?   @db.VarChar(100)
+  s3_created                  Boolean   @default(false)
   hash_integridad             String?   @db.VarChar(255)
   etiquetas                   String[]
   fecha_ultima_actualizacion  DateTime  @default(now()) @updatedAt
@@ -528,6 +545,7 @@ model documentos {
   proyecto_id                 Int?
   subido_por                  Int
   metadata                    Json?
+  eliminado                   Boolean   @default(false)
 
   // Relaciones
   carpeta             carpetas   @relation(fields: [carpeta_id], references: [id])
