@@ -9,6 +9,11 @@ export  async function provinciaRoutes(fastify: FastifyInstance) {
     .get('/provincias', {
       schema: {
         tags: ['Provincias'],
+        summary: 'Obtener todas las provincias',
+        description: 'Retorna una lista de todas las provincias disponibles. Puede filtrar por región usando el parámetro region_id',
+        querystring: z.object({
+          region_id: z.string().regex(/^\d+$/).transform(Number).optional()
+        }),
         response: {
           200: z.array(z.object({
             id: z.number(),
@@ -20,13 +25,22 @@ export  async function provinciaRoutes(fastify: FastifyInstance) {
           }))
         }
       }
-    }, async () => {
-      return prisma.provincias.findMany()
+    }, async (request) => {
+      const { region_id } = request.query;
+      
+      const whereClause = region_id ? { region_id } : {};
+      
+      return prisma.provincias.findMany({
+        where: whereClause
+      })
     })
 
     // Get provincia by id
     .get('/provincias/:id', {
       schema: {
+        tags: ['Provincias'],
+        summary: 'Obtener provincia por ID',
+        description: 'Retorna los detalles de una provincia específica basada en su ID',
         params: z.object({
           id: z.string().regex(/^\d+$/).transform(Number)
         }),

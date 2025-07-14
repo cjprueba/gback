@@ -201,6 +201,129 @@ export class MinIOUtils {
       throw error;
     }
   }
+
+  /**
+   * Renames a folder in MinIO by copying all objects to the new location and removing the old ones
+   */
+  static async renameFolder(oldFolderPath: string, newFolderPath: string): Promise<void> {
+    try {
+      // Normalize paths
+      const normalizedOldPath = oldFolderPath.endsWith('/') ? oldFolderPath : `${oldFolderPath}/`;
+      const normalizedNewPath = newFolderPath.endsWith('/') ? newFolderPath : `${newFolderPath}/`;
+
+      // Check if old folder exists
+      const oldFolderExists = await this.folderExists(oldFolderPath);
+      if (!oldFolderExists) {
+        throw new Error(`Old folder does not exist: ${oldFolderPath}`);
+      }
+
+      // Check if new folder already exists
+      const newFolderExists = await this.folderExists(newFolderPath);
+      if (newFolderExists) {
+        throw new Error(`New folder already exists: ${newFolderPath}`);
+      }
+
+      // List all objects in the old folder (including subfolders)
+      const objects = await this.listFolderContents(oldFolderPath);
+      
+      if (objects.length === 0) {
+        // If folder is empty, just create the new folder and remove the old one
+        await this.createFolder(newFolderPath);
+        await minioClient.removeObject(BUCKET_NAME, normalizedOldPath);
+        console.log(`Empty folder renamed from ${oldFolderPath} to ${newFolderPath}`);
+        return;
+      }
+
+      // Copy all objects to the new location
+      for (const objectPath of objects) {
+        if (objectPath.startsWith(normalizedOldPath)) {
+          const relativePath = objectPath.substring(normalizedOldPath.length);
+          const newObjectPath = `${normalizedNewPath}${relativePath}`;
+          
+          // Copy object to new location
+          await minioClient.copyObject(BUCKET_NAME, newObjectPath, `${BUCKET_NAME}/${objectPath}`);
+          
+          // Remove object from old location
+          await minioClient.removeObject(BUCKET_NAME, objectPath);
+        }
+      }
+
+      // Remove the old folder marker
+      try {
+        await minioClient.removeObject(BUCKET_NAME, normalizedOldPath);
+      } catch (error) {
+        // Ignore error if folder marker doesn't exist
+        console.log(`Old folder marker already removed or doesn't exist: ${normalizedOldPath}`);
+      }
+
+      console.log(`Folder renamed successfully from ${oldFolderPath} to ${newFolderPath}`);
+    } catch (error) {
+      console.error(`Error renaming folder from ${oldFolderPath} to ${newFolderPath}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Moves a folder from one location to another in MinIO
+   * This is similar to renameFolder but specifically for moving between different parent folders
+   */
+  static async moveFolder(oldFolderPath: string, newFolderPath: string): Promise<void> {
+    try {
+      // Normalize paths
+      const normalizedOldPath = oldFolderPath.endsWith('/') ? oldFolderPath : `${oldFolderPath}/`;
+      const normalizedNewPath = newFolderPath.endsWith('/') ? newFolderPath : `${newFolderPath}/`;
+
+      // Check if old folder exists
+      const oldFolderExists = await this.folderExists(oldFolderPath);
+      if (!oldFolderExists) {
+        throw new Error(`Source folder does not exist: ${oldFolderPath}`);
+      }
+
+      // Check if new folder already exists
+      const newFolderExists = await this.folderExists(newFolderPath);
+      if (newFolderExists) {
+        throw new Error(`Destination folder already exists: ${newFolderPath}`);
+      }
+
+      // List all objects in the old folder (including subfolders)
+      const objects = await this.listFolderContents(oldFolderPath);
+      
+      if (objects.length === 0) {
+        // If folder is empty, just create the new folder and remove the old one
+        await this.createFolder(newFolderPath);
+        await minioClient.removeObject(BUCKET_NAME, normalizedOldPath);
+        console.log(`Empty folder moved from ${oldFolderPath} to ${newFolderPath}`);
+        return;
+      }
+
+      // Copy all objects to the new location
+      for (const objectPath of objects) {
+        if (objectPath.startsWith(normalizedOldPath)) {
+          const relativePath = objectPath.substring(normalizedOldPath.length);
+          const newObjectPath = `${normalizedNewPath}${relativePath}`;
+          
+          // Copy object to new location
+          await minioClient.copyObject(BUCKET_NAME, newObjectPath, `${BUCKET_NAME}/${objectPath}`);
+          
+          // Remove object from old location
+          await minioClient.removeObject(BUCKET_NAME, objectPath);
+        }
+      }
+
+      // Remove the old folder marker
+      try {
+        await minioClient.removeObject(BUCKET_NAME, normalizedOldPath);
+      } catch (error) {
+        // Ignore error if folder marker doesn't exist
+        console.log(`Old folder marker already removed or doesn't exist: ${normalizedOldPath}`);
+      }
+
+      console.log(`Folder moved successfully from ${oldFolderPath} to ${newFolderPath}`);
+    } catch (error) {
+      console.error(`Error moving folder from ${oldFolderPath} to ${newFolderPath}:`, error);
+      throw error;
+    }
+  }
 }
 
 export { minioClient, BUCKET_NAME }; 

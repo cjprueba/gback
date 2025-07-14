@@ -48,6 +48,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   server.get('/etapas-tipo', {
     schema: {
       tags: ['Etapas Tipo'],
+      summary: 'Obtener lista de tipos de etapa',
+      description: 'Retorna una lista completa de todos los tipos de etapa disponibles en el sistema. Cada tipo de etapa define qué campos son requeridos para las etapas de un proyecto.',
       response: {
         200: z.object({
           success: z.boolean(),
@@ -71,9 +73,12 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     };
   });
 
+  // GET /etapas-tipo-obra - Lista de tipos de etapa con sus tipos de obra asociados
   server.get('/etapas-tipo-obra', {
     schema: {
       tags: ['Etapas Tipo'],
+      summary: 'Obtener tipos de etapa con sus tipos de obra asociados',
+      description: 'Retorna una lista de tipos de etapa incluyendo los tipos de obra que están asociados a cada uno. Esta información es útil para mostrar las relaciones entre etapas y tipos de obra en la interfaz de usuario.',
       response: {
         200: z.object({
           success: z.boolean(),
@@ -112,7 +117,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       id: etapa.id,
       nombre: etapa.nombre,
       descripcion: etapa.descripcion,
-      color: etapa.color,
+      color: (etapa as any).color || null,
       tipos_obra: etapa.etapas_tipo_obras.map(etapaTipoObra => ({
         id: etapaTipoObra.tipo_obra.id,
         nombre: etapaTipoObra.tipo_obra.nombre
@@ -130,6 +135,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   server.post('/etapas-tipo', {
     schema: {
       tags: ['Etapas Tipo'],
+      summary: 'Crear nuevo tipo de etapa',
+      description: 'Crea un nuevo tipo de etapa en el sistema. Un tipo de etapa define qué campos son requeridos para las etapas de un proyecto, incluyendo información geográfica, financiera, fechas importantes y datos de adjudicación.',
       body: createEtapaTipoSchema,
       response: {
         201: z.object({
@@ -185,6 +192,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   server.put('/etapas-tipo/:id', {
     schema: {
       tags: ['Etapas Tipo'],
+      summary: 'Actualizar tipo de etapa existente',
+      description: 'Actualiza un tipo de etapa existente. Permite modificar el nombre, descripción, color y los campos requeridos para las etapas de este tipo.',
       params: etapaTipoParamsSchema,
       body: updateEtapaTipoSchema,
       response: {
@@ -220,6 +229,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   server.get('/etapas-tipo/etapa/:etapaId', {
     schema: {
       tags: ['Etapas Tipo'],
+      summary: 'Obtener tipo de etapa por ID de etapa',
+      description: 'Retorna la información completa del tipo de etapa asociado a una etapa específica. Incluye todos los campos de configuración que definen qué información es requerida para este tipo de etapa.',
       params: z.object({
         etapaId: z.string().regex(/^\d+$/, 'Etapa ID debe ser un número válido').transform(Number)
       }),
@@ -227,28 +238,28 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         200: z.object({
           success: z.boolean(),
           message: z.string(),
-                data: z.object({
-        id: z.number(),
-        nombre: z.string(),
-        descripcion: z.string().nullable(),
-        color: z.string().nullable(),
-        tipo_iniciativa: z.boolean(),
-        tipo_obra: z.boolean(),
-        bip: z.boolean(),
-        region: z.boolean(),
-        provincia: z.boolean(),
-        comuna: z.boolean(),
-        volumen: z.boolean(),
-        presupuesto_oficial: z.boolean(),
-        fecha_llamado_licitacion: z.boolean(),
-        fecha_recepcion_ofertas_tecnicas: z.boolean(),
-        fecha_apertura_ofertas_economicas: z.boolean(),
-        fecha_inicio_concesion: z.boolean(),
-        plazo_total_concesion: z.boolean(),
-        decreto_adjudicacion: z.boolean(),
-        sociedad_concesionaria: z.boolean(),
-        inspector_fiscal_id: z.boolean()
-      })
+          data: z.object({
+            id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            color: z.string().nullable(),
+            tipo_iniciativa: z.boolean(),
+            tipo_obra: z.boolean(),
+            bip: z.boolean(),
+            region: z.boolean(),
+            provincia: z.boolean(),
+            comuna: z.boolean(),
+            volumen: z.boolean(),
+            presupuesto_oficial: z.boolean(),
+            fecha_llamado_licitacion: z.boolean(),
+            fecha_recepcion_ofertas_tecnicas: z.boolean(),
+            fecha_apertura_ofertas_economicas: z.boolean(),
+            fecha_inicio_concesion: z.boolean(),
+            plazo_total_concesion: z.boolean(),
+            decreto_adjudicacion: z.boolean(),
+            sociedad_concesionaria: z.boolean(),
+            inspector_fiscal_id: z.boolean()
+          })
         }),
         404: z.object({
           success: z.boolean(),
@@ -280,7 +291,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         id: etapa.etapa_tipo.id,
         nombre: etapa.etapa_tipo.nombre,
         descripcion: etapa.etapa_tipo.descripcion,
-        color: etapa.etapa_tipo.color,
+        color: (etapa.etapa_tipo as any).color || null,
         tipo_iniciativa: etapa.etapa_tipo.tipo_iniciativa,
         tipo_obra: etapa.etapa_tipo.tipo_obra,
         bip: etapa.etapa_tipo.bip,
@@ -305,6 +316,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   server.delete('/etapas-tipo/:id', {
     schema: {
       tags: ['Etapas Tipo'],
+      summary: 'Eliminar tipo de etapa',
+      description: 'Elimina permanentemente un tipo de etapa del sistema. Esta operación no se puede deshacer y eliminará todas las referencias a este tipo de etapa.',
       params: etapaTipoParamsSchema,
       response: {
         200: z.object({

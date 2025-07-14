@@ -10,6 +10,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .post('/proyectos', {
       schema: {
         tags: ['Proyectos'],
+        summary: 'Crear un nuevo proyecto',
+        description: 'Crea un nuevo proyecto con su estructura de carpetas inicial y etapa de registro. El endpoint permite crear carpetas en MinIO y registros en la base de datos de forma automática.',
         body: z.object({
           // Campos de proyecto
           nombre: z.string().max(255),
@@ -212,6 +214,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .get('/proyectos', {
       schema: {
         tags: ['Proyectos'],
+        summary: 'Obtener lista de proyectos',
+        description: 'Retorna una lista paginada de todos los proyectos con información básica incluyendo el tipo de etapa más reciente y el creador.',
         response: {
           200: z.object({
             success: z.boolean(),
@@ -277,6 +281,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .get('/proyectos/:id', {
       schema: {
         tags: ['Proyectos'],
+        summary: 'Obtener proyecto por ID',
+        description: 'Retorna la información completa de un proyecto específico incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador.',
         params: z.object({
           id: z.string().transform((val) => parseInt(val, 10))
         }),
@@ -425,6 +431,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .put('/proyectos/:id', {
       schema: {
         tags: ['Proyectos'],
+        summary: 'Actualizar proyecto existente',
+        description: 'Actualiza la información de un proyecto existente. Permite modificar datos básicos del proyecto y crear o actualizar etapas de registro asociadas.',
         params: z.object({
           id: z.string().transform((val) => parseInt(val, 10))
         }),
@@ -583,6 +591,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .get('/proyectos/:id/carpetas', {
       schema: {
         tags: ['Proyectos'],
+        summary: 'Obtener carpetas del proyecto',
+        description: 'Retorna la estructura de carpetas asociada a un proyecto específico, incluyendo carpetas padre e hijas con su información de organización.',
         params: z.object({
           id: z.string().transform((val) => parseInt(val, 10))
         }),
