@@ -58,7 +58,87 @@ export  async function etapasRoutes(app: FastifyInstance) {
   const server = app.withTypeProvider<ZodTypeProvider>();
 
   // GET /etapas - Lista de etapas
-  server.get('/etapas', async (request, reply) => {
+  server.get('/etapas', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Obtener lista de etapas activas',
+      description: 'Retorna todas las etapas activas ordenadas por fecha de creación descendente. Incluye información completa con relaciones (tipo de etapa, iniciativa, obra, ubicación geográfica, inspector fiscal y usuario creador).',
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.array(z.object({
+            id: z.number(),
+            etapa_tipo_id: z.number(),
+            tipo_iniciativa_id: z.number().nullable(),
+            tipo_obra_id: z.number().nullable(),
+            region_id: z.number().nullable(),
+            provincia_id: z.number().nullable(),
+            comuna_id: z.number().nullable(),
+            volumen: z.string().nullable(),
+            presupuesto_oficial: z.string().nullable(),
+            valor_referencia: z.string().nullable(),
+            bip: z.string().nullable(),
+            fecha_llamado_licitacion: z.date().nullable(),
+            fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
+            fecha_apertura_ofertas_economicas: z.date().nullable(),
+            fecha_inicio_concesion: z.date().nullable(),
+            plazo_total_concesion: z.string().nullable(),
+            decreto_adjudicacion: z.string().nullable(),
+            sociedad_concesionaria: z.string().nullable(),
+            inspector_fiscal_id: z.number().nullable(),
+            usuario_creador: z.number(),
+            fecha_creacion: z.date(),
+            fecha_actualizacion: z.date(),
+            activa: z.boolean(),
+            etapa_tipo: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              descripcion: z.string().nullable()
+            }),
+            tipo_iniciativa: z.object({
+              id: z.number(),
+              nombre: z.string()
+            }).nullable(),
+            tipo_obra: z.object({
+              id: z.number(),
+              nombre: z.string()
+            }).nullable(),
+            region: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              codigo: z.string()
+            }).nullable(),
+            provincia: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              codigo: z.string()
+            }).nullable(),
+            comuna: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              codigo: z.string()
+            }).nullable(),
+            inspector_fiscal: z.object({
+              id: z.number(),
+              correo_electronico: z.string().nullable(),
+              nombre_completo: z.string().nullable()
+            }).nullable(),
+            usuario_creador_rel: z.object({
+              id: z.number(),
+              correo_electronico: z.string().nullable(),
+              nombre_completo: z.string().nullable()
+            })
+          }))
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
     try {
       const etapas = await prisma.etapas_registro.findMany({
         where: { activa: true },
@@ -106,6 +186,8 @@ export  async function etapasRoutes(app: FastifyInstance) {
   server.get('/etapas/:id', {
     schema: {
       tags: ['Etapas'],
+      summary: 'Obtener detalle de etapa específica',
+      description: 'Obtiene información detallada de una etapa específica por su ID. Solo retorna etapas activas. Incluye todas las relaciones (tipo de etapa, iniciativa, obra, ubicación geográfica, inspector fiscal y usuario creador).',
       params: etapaParamsSchema,
       response: {
         200: z.object({
@@ -173,6 +255,15 @@ export  async function etapasRoutes(app: FastifyInstance) {
               nombre_completo: z.string().nullable()
             })
           }).optional()
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
         })
       }
     }
@@ -233,37 +324,45 @@ export  async function etapasRoutes(app: FastifyInstance) {
   server.post('/etapas', {
     schema: {
       tags: ['Etapas'],
+      summary: 'Crear nueva etapa',
+      description: 'Crea una nueva etapa en el sistema. Requiere como mínimo el tipo de etapa y el usuario creador. Todos los demás campos son opcionales pero permiten almacenar información completa del proyecto de concesión, incluyendo datos financieros, fechas importantes del proceso de licitación y adjudicación, y ubicación geográfica.',
       body: createEtapaSchema,
-      response: {
-        200: z.object({
-          success: z.boolean(),
-          message: z.string(),
-          data: z.object({
-            id: z.number(),
-            etapa_tipo_id: z.number(),
-            tipo_iniciativa_id: z.number().nullable(),
-            tipo_obra_id: z.number().nullable(),
-            region_id: z.number().nullable(),
-            provincia_id: z.number().nullable(),
-            comuna_id: z.number().nullable(),
-            volumen: z.string().nullable(),
-            presupuesto_oficial: z.string().nullable(),
-            valor_referencia: z.string().nullable(),
-            fecha_llamado_licitacion: z.date().nullable(),
-            fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
-            fecha_apertura_ofertas_economicas: z.date().nullable(),
-            fecha_inicio_concesion: z.date().nullable(),
-            plazo_total_concesion: z.string().nullable(),
-            decreto_adjudicacion: z.string().nullable(),
-            sociedad_concesionaria: z.string().nullable(),
-            inspector_fiscal_id: z.number().nullable(),
-            usuario_creador: z.number(),
-            fecha_creacion: z.date(),
-            fecha_actualizacion: z.date(),
-            activa: z.boolean()
+              response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              id: z.number(),
+              etapa_tipo_id: z.number(),
+              tipo_iniciativa_id: z.number().nullable(),
+              tipo_obra_id: z.number().nullable(),
+              region_id: z.number().nullable(),
+              provincia_id: z.number().nullable(),
+              comuna_id: z.number().nullable(),
+              volumen: z.string().nullable(),
+              presupuesto_oficial: z.string().nullable(),
+              valor_referencia: z.string().nullable(),
+              bip: z.string().nullable(),
+              fecha_llamado_licitacion: z.date().nullable(),
+              fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
+              fecha_apertura_ofertas_economicas: z.date().nullable(),
+              fecha_inicio_concesion: z.date().nullable(),
+              plazo_total_concesion: z.string().nullable(),
+              decreto_adjudicacion: z.string().nullable(),
+              sociedad_concesionaria: z.string().nullable(),
+              inspector_fiscal_id: z.number().nullable(),
+              usuario_creador: z.number(),
+              fecha_creacion: z.date(),
+              fecha_actualizacion: z.date(),
+              activa: z.boolean()
+            })
+          }),
+          500: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            error: z.string()
           })
-        })
-      }
+        }
     }
   }, async (request, reply) => {
 
@@ -328,18 +427,29 @@ export  async function etapasRoutes(app: FastifyInstance) {
   server.put('/etapas/:id', {
     schema: {
       tags: ['Etapas'],
+      summary: 'Actualizar etapa existente',
+      description: 'Actualiza una etapa existente permitiendo modificar cualquier campo. Todos los campos son opcionales en la actualización, permitiendo actualizaciones parciales. Las fechas se convierten automáticamente al formato Date si se proporcionan como strings datetime.',
       params: etapaParamsSchema,
       body: updateEtapaSchema,
-      response: {
-        200: z.object({
-          success: z.boolean(),
-          message: z.string(),
-          data: z.object({
-            id: z.number(),
-            cambios_aplicados: z.record(z.any())
+              response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              id: z.number(),
+              cambios_aplicados: z.record(z.any())
+            })
+          }),
+          404: z.object({
+            success: z.boolean(),
+            message: z.string()
+          }),
+          500: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            error: z.string()
           })
-        })
-      }
+        }
     }
   }, async (request, reply) => {
     const { id } = request.params;
@@ -390,17 +500,28 @@ export  async function etapasRoutes(app: FastifyInstance) {
   server.delete('/etapas/:id', {
     schema: {
       tags: ['Etapas'],
+      summary: 'Eliminar etapa (soft delete)',
+      description: 'Elimina una etapa mediante soft delete, marcándola como inactiva en lugar de eliminarla físicamente de la base de datos. Esto permite mantener el historial y la integridad referencial de los datos.',
       params: etapaParamsSchema,
-      response: {
-        200: z.object({
-          success: z.boolean(),
-          message: z.string(),
-          data: z.object({
-            id: z.number(),
-            eliminada: z.boolean()
+              response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              id: z.number(),
+              eliminada: z.boolean()
+            })
+          }),
+          404: z.object({
+            success: z.boolean(),
+            message: z.string()
+          }),
+          500: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            error: z.string()
           })
-        })
-      }
+        }
     }
   }, async (request, reply) => {
     const { id } = request.params;

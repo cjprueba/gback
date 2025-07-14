@@ -10,6 +10,8 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
     .post('/carpetas', {
       schema: {
         tags: ['Carpetas'],
+        summary: 'Crear una nueva carpeta',
+        description: 'Crea una nueva carpeta en el sistema de archivos y en MinIO. La carpeta puede ser una carpeta raíz, una subcarpeta de otra carpeta, o una carpeta asociada a un proyecto específico.',
         body: z.object({
           nombre: z.string().max(255),
           descripcion: z.string().optional(),
@@ -176,6 +178,8 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
     .get('/carpetas', {
       schema: {
         tags: ['Carpetas'],
+        summary: 'Obtener lista de carpetas',
+        description: 'Obtiene una lista paginada de carpetas con múltiples opciones de filtrado, ordenamiento y relaciones. Permite filtrar por proyecto, carpeta padre, usuario creador, estado activo, nombre, descripción, permisos, tipos de archivo permitidos, fechas y tamaños. También permite incluir relaciones como carpeta padre, proyecto, creador, carpetas hijas y documentos.',
         querystring: z.object({
           // Filtros básicos
           proyecto_id: z.string().optional(),
@@ -514,7 +518,8 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
     .get('/carpetas/:id', {
       schema: {
         tags: ['Carpetas'],
-        description: 'Obtener detalles de una carpeta específica',
+        summary: 'Obtener detalles de una carpeta específica',
+        description: 'Obtiene los detalles completos de una carpeta específica por su ID. Retorna toda la información de la carpeta incluyendo su configuración, permisos, tipos de archivo permitidos y metadatos.',
         params: z.object({
           id: z.string()
         }),
@@ -573,7 +578,8 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
     .get('/carpetas/:id/contenido', {
       schema: {
         tags: ['Carpetas'],
-        description: 'Obtener el contenido de una carpeta',
+        summary: 'Obtener el contenido de una carpeta',
+        description: 'Obtiene el contenido completo de una carpeta específica, incluyendo sus subcarpetas y documentos. Permite configurar qué elementos incluir, límites de resultados y ordenamiento. También proporciona estadísticas detalladas sobre el contenido de la carpeta como total de elementos, tamaño total y tipos de archivo únicos.',
         params: z.object({
           id: z.string()
         }),
@@ -813,5 +819,435 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           message: 'Error interno del servidor'
         });
       }
+    })
+
+    .put('/carpetas/:id/renombrar', {
+      schema: {
+        tags: ['Carpetas'],
+        summary: 'Renombrar una carpeta',
+        description: 'Renombra una carpeta específica tanto en la base de datos como en el almacenamiento MinIO. Actualiza el nombre de la carpeta y recalcula las rutas S3 de todas las subcarpetas y documentos asociados.',
+        params: z.object({
+          id: z.string()
+        }),
+        body: z.object({
+          nuevo_nombre: z.string().max(255),
+          usuario_modificador: z.number()
+        }),
+        response: {
+          200: z.object({
+            id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            carpeta_padre_id: z.number().nullable(),
+            proyecto_id: z.number().nullable(),
+            s3_path: z.string(),
+            s3_bucket_name: z.string().nullable(),
+            s3_created: z.boolean(),
+            orden_visualizacion: z.number(),
+            max_tamaño_mb: z.number().nullable(),
+            tipos_archivo_permitidos: z.array(z.string()),
+            permisos_lectura: z.array(z.string()),
+            permisos_escritura: z.array(z.string()),
+            usuario_creador: z.number(),
+            fecha_creacion: z.date(),
+            fecha_actualizacion: z.date(),
+            activa: z.boolean(),
+            message: z.string()
+          }),
+          400: z.object({
+            message: z.string()
+          }),
+          404: z.object({
+            message: z.string()
+          }),
+          500: z.object({
+            message: z.string()
+          })
+        }
+      }
+    }, async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { nuevo_nombre, usuario_modificador } = request.body;
+
+        // Validar que la carpeta existe
+        const carpeta = await prisma.carpetas.findUnique({
+          where: { id: parseInt(id) }
+        });
+
+        if (!carpeta) {
+          return reply.status(404).send({
+            message: 'Carpeta no encontrada'
+          });
+        }
+
+        // Validar que el usuario modificador existe
+        const usuario = await prisma.usuarios.findUnique({
+          where: { id: usuario_modificador }
+        });
+
+        if (!usuario) {
+          return reply.status(400).send({
+            message: 'Usuario modificador no encontrado'
+          });
+        }
+
+        // Validar que el nuevo nombre no esté vacío
+        if (!nuevo_nombre || nuevo_nombre.trim() === '') {
+          return reply.status(400).send({
+            message: 'El nuevo nombre no puede estar vacío'
+          });
+        }
+
+        // Validar que no existe otra carpeta con el mismo nombre en el mismo nivel
+        const carpetaExistente = await prisma.carpetas.findFirst({
+          where: {
+            nombre: nuevo_nombre,
+            carpeta_padre_id: carpeta.carpeta_padre_id,
+            proyecto_id: carpeta.proyecto_id,
+            activa: true,
+            id: { not: parseInt(id) }
+          }
+        });
+
+        if (carpetaExistente) {
+          return reply.status(400).send({
+            message: 'Ya existe una carpeta con ese nombre en el mismo nivel'
+          });
+        }
+
+        // Calcular la nueva ruta S3
+        let nuevaRutaS3 = '';
+        
+        if (carpeta.carpeta_padre_id) {
+          // Si tiene carpeta padre, obtener su path y agregar el nuevo nombre
+          const carpetaPadre = await prisma.carpetas.findUnique({
+            where: { id: carpeta.carpeta_padre_id },
+            select: { s3_path: true }
+          });
+          
+          if (carpetaPadre) {
+            nuevaRutaS3 = `${carpetaPadre.s3_path}/${nuevo_nombre}`;
+          }
+        } else if (carpeta.proyecto_id) {
+          // Si es carpeta de proyecto, usar el nombre del proyecto como base
+          const proyecto = await prisma.proyectos.findUnique({
+            where: { id: carpeta.proyecto_id },
+            select: { nombre: true }
+          });
+          
+          if (proyecto) {
+            nuevaRutaS3 = `proyectos/${proyecto.nombre}/${nuevo_nombre}`;
+          }
+        } else {
+          // Carpeta raíz
+          nuevaRutaS3 = nuevo_nombre;
+        }
+
+        // Renombrar la carpeta en MinIO
+        try {
+          await MinIOUtils.renameFolder(carpeta.s3_path, nuevaRutaS3);
+          console.log(`Carpeta renombrada en MinIO: ${carpeta.s3_path} -> ${nuevaRutaS3}`);
+        } catch (minioError) {
+          console.error('Error renombrando carpeta en MinIO:', minioError);
+          return reply.status(500).send({
+            message: 'Error renombrando carpeta en el almacenamiento'
+          });
+        }
+
+        // Actualizar la carpeta principal en la base de datos
+        const carpetaActualizada = await prisma.carpetas.update({
+          where: { id: parseInt(id) },
+          data: {
+            nombre: nuevo_nombre,
+            s3_path: nuevaRutaS3,
+            fecha_actualizacion: new Date()
+          }
+        });
+
+        // Actualizar las rutas S3 de todas las subcarpetas recursivamente
+        await actualizarRutasSubcarpetas(parseInt(id), carpeta.s3_path, nuevaRutaS3);
+
+        // Actualizar las rutas S3 de todos los documentos en esta carpeta
+        await prisma.$executeRaw`
+          UPDATE documentos 
+          SET s3_path = REPLACE(s3_path, ${carpeta.s3_path}, ${nuevaRutaS3})
+          WHERE carpeta_id = ${parseInt(id)}
+        `;
+
+        console.log(`Carpeta renombrada exitosamente: ${carpeta.nombre} -> ${nuevo_nombre} (ID: ${carpeta.id})`);
+
+        return reply.send({
+          ...carpetaActualizada,
+          message: `Carpeta renombrada exitosamente de "${carpeta.nombre}" a "${nuevo_nombre}"`
+        });
+
+      } catch (error) {
+        console.error('Error renombrando carpeta:', error);
+        return reply.status(500).send({
+          message: 'Error interno del servidor'
+        });
+      }
+    })
+
+    .put('/carpetas/:id/mover', {
+      schema: {
+        tags: ['Carpetas'],
+        summary: 'Mover una carpeta a otra ubicación',
+        description: 'Mueve una carpeta de una ubicación a otra, actualizando tanto la base de datos como el almacenamiento MinIO. Permite mover carpetas entre diferentes proyectos, carpetas padre, o convertir carpetas en carpetas raíz. Actualiza automáticamente las rutas S3 de todas las subcarpetas y documentos asociados.',
+        params: z.object({
+          id: z.string()
+        }),
+        body: z.object({
+          nueva_carpeta_padre_id: z.number(),
+          usuario_modificador: z.number()
+        }),
+        response: {
+          200: z.object({
+            id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            carpeta_padre_id: z.number().nullable(),
+            proyecto_id: z.number().nullable(),
+            s3_path: z.string(),
+            s3_bucket_name: z.string().nullable(),
+            s3_created: z.boolean(),
+            orden_visualizacion: z.number(),
+            max_tamaño_mb: z.number().nullable(),
+            tipos_archivo_permitidos: z.array(z.string()),
+            permisos_lectura: z.array(z.string()),
+            permisos_escritura: z.array(z.string()),
+            usuario_creador: z.number(),
+            fecha_creacion: z.date(),
+            fecha_actualizacion: z.date(),
+            activa: z.boolean(),
+            message: z.string()
+          }),
+          400: z.object({
+            message: z.string()
+          }),
+          404: z.object({
+            message: z.string()
+          }),
+          500: z.object({
+            message: z.string()
+          })
+        }
+      }
+    }, async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { nueva_carpeta_padre_id, usuario_modificador } = request.body;
+
+        // Validar que la carpeta existe
+        const carpeta = await prisma.carpetas.findUnique({
+          where: { id: parseInt(id) }
+        });
+
+        if (!carpeta) {
+          return reply.status(404).send({
+            message: 'Carpeta no encontrada'
+          });
+        }
+
+        // Validar que el usuario modificador existe
+        const usuario = await prisma.usuarios.findUnique({
+          where: { id: usuario_modificador }
+        });
+
+        if (!usuario) {
+          return reply.status(400).send({
+            message: 'Usuario modificador no encontrado'
+          });
+        }
+
+        // Validar que no se está intentando mover la carpeta a sí misma
+        if (nueva_carpeta_padre_id === parseInt(id)) {
+          return reply.status(400).send({
+            message: 'No se puede mover una carpeta a sí misma'
+          });
+        }
+
+        // Validar que la nueva carpeta padre existe si se especifica
+        if (nueva_carpeta_padre_id) {
+          const nuevaCarpetaPadre = await prisma.carpetas.findUnique({
+            where: { id: nueva_carpeta_padre_id }
+          });
+
+          if (!nuevaCarpetaPadre) {
+            return reply.status(400).send({
+              message: 'Carpeta padre de destino no encontrada'
+            });
+          }
+
+          // Validar que no se está intentando mover a una subcarpeta de sí misma
+          const esSubcarpeta = await esSubcarpetaDe(parseInt(id), nueva_carpeta_padre_id);
+          if (esSubcarpeta) {
+            return reply.status(400).send({
+              message: 'No se puede mover una carpeta a una de sus subcarpetas'
+            });
+          }
+        }
+
+        // Obtener información de la carpeta padre para determinar el proyecto
+        const carpetaPadre = await prisma.carpetas.findUnique({
+          where: { id: nueva_carpeta_padre_id },
+          select: { proyecto_id: true }
+        });
+
+        if (!carpetaPadre) {
+          return reply.status(400).send({
+            message: 'Carpeta padre de destino no encontrada'
+          });
+        }
+
+        const nuevo_proyecto_id = carpetaPadre.proyecto_id;
+
+        // Validar que no existe otra carpeta con el mismo nombre en el destino
+        const carpetaExistente = await prisma.carpetas.findFirst({
+          where: {
+            nombre: carpeta.nombre,
+            carpeta_padre_id: nueva_carpeta_padre_id,
+            proyecto_id: nuevo_proyecto_id,
+            activa: true,
+            id: { not: parseInt(id) }
+          }
+        });
+
+        if (carpetaExistente) {
+          return reply.status(400).send({
+            message: 'Ya existe una carpeta con ese nombre en el destino'
+          });
+        }
+
+        // Calcular la nueva ruta S3
+        let nuevaRutaS3 = '';
+        
+        // Obtener la carpeta padre para calcular la nueva ruta
+        const carpetaPadreInfo = await prisma.carpetas.findUnique({
+          where: { id: nueva_carpeta_padre_id },
+          select: { s3_path: true }
+        });
+        
+        if (carpetaPadreInfo) {
+          nuevaRutaS3 = `${carpetaPadreInfo.s3_path}/${carpeta.nombre}`;
+        }
+
+        // Mover la carpeta en MinIO
+        try {
+          await MinIOUtils.moveFolder(carpeta.s3_path, nuevaRutaS3);
+          console.log(`Carpeta movida en MinIO: ${carpeta.s3_path} -> ${nuevaRutaS3}`);
+        } catch (minioError) {
+          console.error('Error moviendo carpeta en MinIO:', minioError);
+          return reply.status(500).send({
+            message: 'Error moviendo carpeta en el almacenamiento'
+          });
+        }
+
+        // Actualizar la carpeta principal en la base de datos
+        const carpetaActualizada = await prisma.carpetas.update({
+          where: { id: parseInt(id) },
+          data: {
+            carpeta_padre_id: nueva_carpeta_padre_id,
+            proyecto_id: nuevo_proyecto_id,
+            s3_path: nuevaRutaS3,
+            fecha_actualizacion: new Date()
+          }
+        });
+
+        // Actualizar las rutas S3 de todas las subcarpetas recursivamente
+        await actualizarRutasSubcarpetas(parseInt(id), carpeta.s3_path, nuevaRutaS3);
+
+        // Actualizar las rutas S3 de todos los documentos en esta carpeta
+        await prisma.$executeRaw`
+          UPDATE documentos 
+          SET s3_path = REPLACE(s3_path, ${carpeta.s3_path}, ${nuevaRutaS3})
+          WHERE carpeta_id = ${parseInt(id)}
+        `;
+
+        console.log(`Carpeta movida exitosamente: ${carpeta.nombre} (ID: ${carpeta.id})`);
+
+        return reply.send({
+          ...carpetaActualizada,
+          message: `Carpeta "${carpeta.nombre}" movida exitosamente`
+        });
+
+      } catch (error) {
+        console.error('Error moviendo carpeta:', error);
+        return reply.status(500).send({
+          message: 'Error interno del servidor'
+        });
+      }
     });
+}
+
+// Función auxiliar para actualizar rutas de subcarpetas recursivamente
+async function actualizarRutasSubcarpetas(
+  carpetaId: number, 
+  rutaAntigua: string, 
+  rutaNueva: string
+): Promise<void> {
+  try {
+    // Obtener todas las subcarpetas directas
+    const subcarpetas = await prisma.carpetas.findMany({
+      where: { carpeta_padre_id: carpetaId }
+    });
+
+    for (const subcarpeta of subcarpetas) {
+      // Calcular la nueva ruta para esta subcarpeta
+      const nuevaRutaSubcarpeta = subcarpeta.s3_path.replace(rutaAntigua, rutaNueva);
+      
+      // Actualizar la subcarpeta
+      await prisma.carpetas.update({
+        where: { id: subcarpeta.id },
+        data: {
+          s3_path: nuevaRutaSubcarpeta,
+          fecha_actualizacion: new Date()
+        }
+      });
+
+      // Actualizar documentos en esta subcarpeta
+      await prisma.$executeRaw`
+        UPDATE documentos 
+        SET s3_path = REPLACE(s3_path, ${subcarpeta.s3_path}, ${nuevaRutaSubcarpeta})
+        WHERE carpeta_id = ${subcarpeta.id}
+      `;
+
+      // Recursivamente actualizar subcarpetas de esta subcarpeta
+      await actualizarRutasSubcarpetas(subcarpeta.id, subcarpeta.s3_path, nuevaRutaSubcarpeta);
+    }
+  } catch (error) {
+    console.error('Error actualizando rutas de subcarpetas:', error);
+    throw error;
+  }
+}
+
+// Función auxiliar para verificar si una carpeta es subcarpeta de otra
+async function esSubcarpetaDe(carpetaId: number, carpetaPadreId: number): Promise<boolean> {
+  try {
+    const carpeta = await prisma.carpetas.findUnique({
+      where: { id: carpetaId },
+      select: { carpeta_padre_id: true }
+    });
+
+    if (!carpeta) {
+      return false;
+    }
+
+    // Si la carpeta no tiene padre, no es subcarpeta
+    if (!carpeta.carpeta_padre_id) {
+      return false;
+    }
+
+    // Si el padre es el que estamos buscando, es subcarpeta
+    if (carpeta.carpeta_padre_id === carpetaPadreId) {
+      return true;
+    }
+
+    // Recursivamente verificar el padre del padre
+    return await esSubcarpetaDe(carpeta.carpeta_padre_id, carpetaPadreId);
+  } catch (error) {
+    console.error('Error verificando si es subcarpeta:', error);
+    return false;
+  }
 }

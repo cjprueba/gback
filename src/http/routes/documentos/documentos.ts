@@ -23,8 +23,8 @@ export async function documentosRoutes(app: FastifyInstance) {
       {
         schema: {
           tags: ['Documentos'],
-          summary: 'Upload a document to a folder',
-          description: 'Uploads a file to MinIO and creates a document record in the database',
+          summary: 'Subir un documento a una carpeta',
+          description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos',
           consumes: ['multipart/form-data'],
           response: {
             200: z.object({
@@ -188,8 +188,8 @@ export async function documentosRoutes(app: FastifyInstance) {
       {
         schema: {
           tags: ['Documentos'],
-          summary: 'Get documents in a folder',
-          description: 'Retrieves all documents in a specific folder',
+          summary: 'Obtener documentos en una carpeta',
+          description: 'Recupera todos los documentos en una carpeta específica',
           params: z.object({
             carpetaId: z.string().transform((val) => parseInt(val)),
           }),
@@ -416,8 +416,8 @@ export async function documentosRoutes(app: FastifyInstance) {
       {
         schema: {
           tags: ['Documentos'],
-          summary: 'Download a document',
-          description: 'Downloads a document from MinIO using S3 path',
+          summary: 'Descargar un documento',
+          description: 'Descarga un documento desde MinIO usando la ruta S3',
           params: z.object({
             documentoId: z.string().uuid(),
           }),
@@ -593,181 +593,4 @@ export async function documentosRoutes(app: FastifyInstance) {
       }
     );
 
-  // Get deleted documents that need re-upload
-  app
-    .withTypeProvider<ZodTypeProvider>()
-    .get(
-      '/documentos/deleted/needs-reupload',
-      {
-        schema: {
-          tags: ['Documentos'],
-          summary: 'Obtener documentos eliminados que necesitan re-subida',
-          description: 'Obtiene la lista de documentos eliminados que necesitan ser re-subidos porque el archivo físico fue eliminado',
-          response: {
-            200: z.object({
-              success: z.boolean(),
-              documentos: z.array(z.object({
-                id: z.string(),
-                nombre_archivo: z.string(),
-                extension: z.string().nullable(),
-                descripcion: z.string().nullable(),
-                categoria: z.string().nullable(),
-                carpeta_id: z.number(),
-                proyecto_id: z.number().nullable(),
-                fecha_creacion: z.date(),
-                fecha_ultima_actualizacion: z.date(),
-                creador: z.object({
-                  id: z.number(),
-                  nombre_completo: z.string().nullable(),
-                  correo_electronico: z.string().nullable(),
-                }),
-              })),
-            }),
-            400: z.object({
-              error: z.string(),
-            }),
-            401: z.object({
-              error: z.string(),
-            }),
-          },
-        },
-      },
-      async (request, reply) => {
-        try {
-          // Get deleted documents that have no S3 path (indicating file was deleted)
-          const documentos = await (prisma as any).documentos.findMany({
-            where: {
-              eliminado: true,
-              s3_path: null,
-            },
-            include: {
-              creador: {
-                select: {
-                  id: true,
-                  nombre_completo: true,
-                  correo_electronico: true,
-                },
-              },
-            },
-            orderBy: {
-              fecha_ultima_actualizacion: 'desc',
-            },
-          });
-
-          return reply.send({
-            success: true,
-            documentos: documentos.map(doc => ({
-              id: doc.id,
-              nombre_archivo: doc.nombre_archivo,
-              extension: doc.extension,
-              descripcion: doc.descripcion,
-              categoria: doc.categoria,
-              carpeta_id: doc.carpeta_id,
-              proyecto_id: doc.proyecto_id,
-              fecha_creacion: doc.fecha_creacion,
-              fecha_ultima_actualizacion: doc.fecha_ultima_actualizacion,
-              creador: doc.creador,
-            })),
-          });
-
-        } catch (error) {
-          console.error('Error getting deleted documents that need re-upload:', error);
-          
-          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
-            throw error;
-          }
-          
-          throw new BadRequestError('Failed to get deleted documents that need re-upload');
-        }
-      }
-    );
-
-  // Restore deleted document
-  app
-    .withTypeProvider<ZodTypeProvider>()
-    .patch(
-      '/documentos/:documentoId/restore',
-      {
-        schema: {
-          tags: ['Documentos'],
-          summary: 'Restaurar documento eliminado',
-          description: 'Restaura un documento que fue marcado como eliminado',
-          params: z.object({
-            documentoId: z.string().uuid(),
-          }),
-          response: {
-            200: z.object({
-              success: z.boolean(),
-              message: z.string(),
-            }),
-            400: z.object({
-              error: z.string(),
-            }),
-            401: z.object({
-              error: z.string(),
-            }),
-            404: z.object({
-              error: z.string(),
-            }),
-          },
-        },
-      },
-      async (request, reply) => {
-        try {
-          const { documentoId } = request.params;
-
-          // Get document (including deleted ones for this operation)
-          const documento = await (prisma as any).documentos.findFirst({
-            where: {
-              id: documentoId,
-            },
-          });
-
-          if (!documento) {
-            throw new BadRequestError('Document not found');
-          }
-
-          // Check if document is not deleted
-          if (!(documento as any).eliminado) {
-            throw new BadRequestError('Document is not deleted');
-          }
-
-          // Create audit record
-          await (prisma as any).archivo_historial.create({
-            data: {
-              archivo_id: documentoId,
-              usuario_id: 1, // Default user ID - should be passed as parameter
-              accion: 'restore',
-              descripcion: 'Document restored from deleted state (file needs to be re-uploaded)',
-              version_nueva: documento.version,
-            },
-          });
-
-          // Restore document - mark as not deleted
-          await (prisma as any).documentos.update({
-            where: {
-              id: documentoId,
-            },
-            data: {
-              eliminado: false,
-              fecha_ultima_actualizacion: new Date(),
-            },
-          });
-
-          return reply.send({
-            success: true,
-            message: 'Document restored successfully. Note: The file was physically deleted from storage and needs to be re-uploaded.',
-          });
-
-        } catch (error) {
-          console.error('Error restoring document:', error);
-          
-          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
-            throw error;
-          }
-          
-          throw new BadRequestError('Failed to restore document');
-        }
-      }
-    );
 }

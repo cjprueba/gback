@@ -63,6 +63,9 @@ import { carpetasRoutes } from './routes/carpetas/carpetas';
 //documentos
 import { documentosRoutes } from './routes/documentos/documentos';
 
+//busqueda
+import { busquedaRoutes } from './routes/busqueda/busqueda';
+
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
 app.setSerializerCompiler(serializerCompiler);
@@ -122,6 +125,7 @@ app.register(tiposIniciativas);
 app.register(proyectosRoutes);
 app.register(carpetasRoutes);
 app.register(documentosRoutes);
+app.register(busquedaRoutes);
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
 });
