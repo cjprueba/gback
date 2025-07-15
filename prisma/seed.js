@@ -197,41 +197,175 @@ async function main() {
       { 
         nombre: 'Cartera de proyectos', 
         descripcion: 'Etapa de inicio de proyecto',
-        // Todos los campos están en true por defecto
+        color: 'rgb(52, 152, 219)',
+        carpetas_iniciales: {
+          "Desarrollo de Proyectos": {},
+          "División Participación Medio Ambiente y Territorio": {},
+          "Jurídica": {},
+          "Ingeniería": {},
+          "División de Administración y Finanzas": {},
+          "División de Estudios y Análisis Financiero": {},
+          "Expropiaciones": {}
+        },
+        // Solo habilitar los campos específicos para Cartera de proyectos
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        plazo_total_concesion: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false,
+        fecha_recepcion_ofertas_tecnicas: false,
+        fecha_apertura_ofertas_economicas: false,
+        fecha_inicio_concesion: false,
+        decreto_adjudicacion: false,
+        sociedad_concesionaria: false,
+        inspector_fiscal_id: false
       },
       { 
         nombre: 'Proyectos en Licitación', 
         descripcion: 'Proceso de licitación',
+        color: 'rgb(241, 196, 15)',
+        carpetas_iniciales: {
+          "Proyecto en Licitación": {
+            "Proyectos": {
+              "Proyecto de Licitación": {},
+              "Proyecto de Adjudicación": {}
+            }
+          }
+        },
+        // Solo habilitar los campos específicos para Proyectos en Licitación
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
         fecha_llamado_licitacion: true,
         fecha_recepcion_ofertas_tecnicas: true,
-        fecha_apertura_ofertas_economicas: true
-      },
-      { 
-        nombre: 'Concesiones en Operación', 
-        descripcion: '-',
-        decreto_adjudicacion: true,
-        sociedad_concesionaria: true
+        fecha_apertura_ofertas_economicas: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false,
+        fecha_inicio_concesion: false,
+        plazo_total_concesion: false,
+        decreto_adjudicacion: false,
+        sociedad_concesionaria: false,
+        inspector_fiscal_id: false
       },
       { 
         nombre: 'Concesiones en Construcción', 
         descripcion: '-',
+        color: 'rgb(231, 76, 60)',
+        carpetas_iniciales: {
+          "Coordinación Técnica": {
+            "Subcarpetas": {
+              "Coordinación Técnica": {},
+              "Contratos de Asesorías": {},
+              "Coordinación Técnica ": {}
+            }
+          },
+          "Departamento": {},
+          "Expropiaciones": {},
+          "Ingeniería": {}
+        },
+        // Solo habilitar los campos específicos para Concesiones en Construcción
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
         fecha_inicio_concesion: true,
         plazo_total_concesion: true,
-        inspector_fiscal_id: true
+        inspector_fiscal_id: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false
+      },
+      { 
+        nombre: 'Concesiones en Operación', 
+        descripcion: '-',
+        color: 'rgb(46, 204, 113)',
+        // Solo habilitar los campos específicos para Concesiones en Operación
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
+        fecha_inicio_concesion: true,
+        plazo_total_concesion: true,
+        inspector_fiscal_id: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false
       },
       { 
         nombre: 'Concesiones en Operación y Construcción', 
         descripcion: '-',
+        color: 'rgb(155, 89, 182)',
+        // Solo habilitar los campos específicos para Concesiones en Operación y Construcción
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
         fecha_inicio_concesion: true,
         plazo_total_concesion: true,
-        inspector_fiscal_id: true
+        inspector_fiscal_id: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false
       },
       { 
         nombre: 'Concesiones Finalizadas', 
         descripcion: '-',
+        color: 'rgb(127, 140, 141)',
+        // Solo habilitar los campos específicos para Concesiones Finalizadas
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        valor_referencia: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
         fecha_inicio_concesion: true,
         plazo_total_concesion: true,
-        inspector_fiscal_id: true
+        // Deshabilitar todos los demás campos
+        bip: false,
+        inspector_fiscal_id: false
       }
     ]
   })

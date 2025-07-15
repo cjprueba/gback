@@ -77,7 +77,9 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       });
 
       // Si se incluye información de etapas_registro, crear la etapa después del proyecto
+      let etapaTipoId = null;
       if (etapas_registro) {
+        etapaTipoId = etapas_registro.etapa_tipo_id;
         await prisma.etapas_registro.create({
           data: {
             etapa_tipo_id: etapas_registro.etapa_tipo_id,
@@ -145,7 +147,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               projectFolderPath,
               datosProyecto.carpeta_inicial,
               datosProyecto.creado_por,
-              carpetaRaiz?.id
+              carpetaRaiz?.id,
+              etapaTipoId
             );
             console.log('Initial folders DB records created successfully for project:', proyecto.nombre);
           } catch (folderError) {
@@ -186,7 +189,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                   carpetas_iniciales: etapaTipo.carpetas_iniciales
                 },
                 datosProyecto.creado_por,
-                carpetaRaiz?.id
+                carpetaRaiz?.id,
+                etapaTipoId
               );
               console.log('Etapa tipo folders DB records created successfully for project:', proyecto.nombre);
             } else {

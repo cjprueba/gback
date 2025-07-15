@@ -5,6 +5,7 @@ export interface CarpetaDBData {
   descripcion?: string;
   carpeta_padre_id?: number;
   proyecto_id?: number;
+  etapa_tipo_id?: number;
   concesion_id?: number;
   division_id?: number;
   departamento_id?: number;
@@ -30,6 +31,7 @@ export class CarpetaDBUtils {
           descripcion: carpetaData.descripcion,
           carpeta_padre_id: carpetaData.carpeta_padre_id,
           proyecto_id: carpetaData.proyecto_id,
+          etapa_tipo_id: carpetaData.etapa_tipo_id,
           concesion_id: carpetaData.concesion_id,
           division_id: carpetaData.division_id,
           departamento_id: carpetaData.departamento_id,
@@ -101,7 +103,8 @@ export class CarpetaDBUtils {
     projectFolderPath: string,
     carpetaInicial: any,
     usuarioCreador: number,
-    carpetaPadreId?: number
+    carpetaPadreId?: number,
+    etapaTipoId?: number
   ) {
     try {
       const carpetasCreadas = [];
@@ -116,6 +119,7 @@ export class CarpetaDBUtils {
             descripcion: `Carpeta inicial del proyecto`,
             proyecto_id: projectId,
             carpeta_padre_id: carpetaPadreId,
+            etapa_tipo_id: etapaTipoId,
             s3_path: folderPath,
             usuario_creador: usuarioCreador,
             orden_visualizacion: i + 1
@@ -141,7 +145,8 @@ export class CarpetaDBUtils {
     projectFolderPath: string,
     etapaTipoCarpetas: any,
     usuarioCreador: number,
-    carpetaPadreId?: number
+    carpetaPadreId?: number,
+    etapaTipoId?: number
   ) {
     try {
       const carpetasCreadas = [];
@@ -161,6 +166,7 @@ export class CarpetaDBUtils {
                 descripcion: `Carpeta del tipo de etapa`,
                 proyecto_id: projectId,
                 carpeta_padre_id: carpetaPadreId,
+                etapa_tipo_id: etapaTipoId,
                 s3_path: folderPath,
                 usuario_creador: usuarioCreador,
                 orden_visualizacion: orden++
@@ -180,6 +186,7 @@ export class CarpetaDBUtils {
                 descripcion: `Carpeta del tipo de etapa`,
                 proyecto_id: projectId,
                 carpeta_padre_id: carpetaPadreId,
+                etapa_tipo_id: etapaTipoId,
                 s3_path: folderPath,
                 usuario_creador: usuarioCreador,
                 orden_visualizacion: orden++
@@ -199,6 +206,7 @@ export class CarpetaDBUtils {
                 descripcion: `Carpeta del tipo de etapa`,
                 proyecto_id: projectId,
                 carpeta_padre_id: carpetaPadreId,
+                etapa_tipo_id: etapaTipoId,
                 s3_path: folderPath,
                 usuario_creador: usuarioCreador,
                 orden_visualizacion: orden++

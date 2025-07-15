@@ -120,35 +120,36 @@ model etapas_tipo {
   carpetas_iniciales Json @default("{}")
   
   // Información de la etapa
-  tipo_iniciativa Boolean   @default(true)
-  tipo_obra Boolean   @default(true)
-  region Boolean   @default(true)
-  provincia Boolean   @default(true)
-  comuna Boolean   @default(true)
-  volumen Boolean   @default(true)
+  tipo_iniciativa Boolean   @default(false)
+  tipo_obra Boolean   @default(false)
+  region Boolean   @default(false)
+  provincia Boolean   @default(false)
+  comuna Boolean   @default(false)
+  volumen Boolean   @default(false)
   
   // Información financiera
-  presupuesto_oficial Boolean   @default(true)
-  valor_referencia Boolean   @default(true)
-  bip Boolean   @default(true)
+  presupuesto_oficial Boolean   @default(false)
+  valor_referencia Boolean   @default(false)
+  bip Boolean   @default(false)
   
   // Fechas importantes
-  fecha_llamado_licitacion Boolean   @default(true)
-  fecha_recepcion_ofertas_tecnicas Boolean   @default(true)
-  fecha_apertura_ofertas_economicas Boolean   @default(true)
-  fecha_inicio_concesion Boolean   @default(true)
-  plazo_total_concesion Boolean   @default(true)
+  fecha_llamado_licitacion Boolean   @default(false)
+  fecha_recepcion_ofertas_tecnicas Boolean   @default(false)
+  fecha_apertura_ofertas_economicas Boolean   @default(false)
+  fecha_inicio_concesion Boolean   @default(false)
+  plazo_total_concesion Boolean   @default(false)
   
   // Información de la adjudicación
-  decreto_adjudicacion Boolean   @default(true)
-  sociedad_concesionaria Boolean   @default(true)
+  decreto_adjudicacion Boolean   @default(false)
+  sociedad_concesionaria Boolean   @default(false)
   
   // Inspector fiscal asignado
-  inspector_fiscal_id Boolean   @default(true)
+  inspector_fiscal_id Boolean   @default(false)
 
   // Relaciones inversas
   etapas_registro etapas_registro[]
   etapas_tipo_obras etapas_tipo_obras[]
+  carpetas carpetas[]
 }
 
 model tipos_iniciativas {
@@ -487,6 +488,7 @@ model carpetas {
   carpeta_padre_id            Int?
   
   proyecto_id                 Int?
+  etapa_tipo_id               Int?
   
   // Información de S3
   s3_path                     String   @db.VarChar(500)
@@ -509,6 +511,7 @@ model carpetas {
   // Relaciones
   carpeta_padre   carpetas?     @relation("CarpetaHijos", fields: [carpeta_padre_id], references: [id])
   proyecto        proyectos?    @relation(fields: [proyecto_id], references: [id])
+  etapa_tipo      etapas_tipo?  @relation(fields: [etapa_tipo_id], references: [id])
   creador         usuarios      @relation(fields: [usuario_creador], references: [id])
 
   // Relaciones inversas
