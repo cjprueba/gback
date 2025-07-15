@@ -13,11 +13,9 @@ When a new project is created via the POST `/proyectos` endpoint, the system aut
 - **Example**: `proyectos/mi_proyecto_123/`
 
 ### Initial Folders
-The `carpeta_inicial` parameter allows you to specify a JSON structure for creating initial folders within the project:
+The `carpeta_inicial` parameter allows you to specify a JSON structure for creating initial folders within the project. The system now supports both flat and nested structures.
 
-### Etapa Tipo Folders
-The system automatically creates folders based on the `carpetas_iniciales` field from the `etapas_tipo` table. These folders are created in addition to any manually specified initial folders.
-
+#### Flat Structure (Legacy)
 ```json
 {
   "carpetas": [
@@ -34,12 +32,25 @@ The system automatically creates folders based on the `carpetas_iniciales` field
 }
 ```
 
+#### Nested Structure (New)
+```json
+{
+  "Proyecto en Licitación": {
+    "Proyectos": {
+      "Proyecto de Licitación": {},
+      "Proyecto de Adjudicación": {}
+    }
+  }
+}
+```
+
 This will create the following folder structure:
 ```
 proyectos/mi_proyecto_123/
-├── Carpeta 1/
-├── Carpeta 2/
-├── Carpeta 3/
+├── Proyecto en Licitación/
+│   └── Proyectos/
+│       ├── Proyecto de Licitación/
+│       └── Proyecto de Adjudicación/
 ├── [Etapa Tipo Folder 1]/
 ├── [Etapa Tipo Folder 2]/
 └── [Etapa Tipo Folder 3]/
@@ -49,7 +60,7 @@ proyectos/mi_proyecto_123/
 
 The `carpetas_iniciales` field in the `etapas_tipo` table can have different JSON structures:
 
-#### Structure 1: Array of objects
+#### Structure 1: Array of objects (Legacy)
 ```json
 {
   "carpetas_iniciales": [
@@ -60,7 +71,7 @@ The `carpetas_iniciales` field in the `etapas_tipo` table can have different JSO
 }
 ```
 
-#### Structure 2: Object with carpetas array
+#### Structure 2: Object with carpetas array (Legacy)
 ```json
 {
   "carpetas_iniciales": {
@@ -73,7 +84,7 @@ The `carpetas_iniciales` field in the `etapas_tipo` table can have different JSO
 }
 ```
 
-#### Structure 3: Object with folder names as keys
+#### Structure 3: Object with folder names as keys (Legacy)
 ```json
 {
   "carpetas_iniciales": {
@@ -84,9 +95,61 @@ The `carpetas_iniciales` field in the `etapas_tipo` table can have different JSO
 }
 ```
 
+#### Structure 4: Nested structure (New)
+```json
+{
+  "carpetas_iniciales": {
+    "Diseño": {
+      "Planos": {
+        "Planos Arquitectónicos": {},
+        "Planos Estructurales": {},
+        "Planos Mecánicos": {},
+        "Planos Eléctricos": {}
+      },
+      "Especificaciones": {
+        "Especificaciones Técnicas": {},
+        "Especificaciones de Materiales": {}
+      },
+      "Memorias": {
+        "Memoria de Cálculo": {},
+        "Memoria Descriptiva": {}
+      }
+    }
+  }
+}
+```
+
 ## API Usage
 
-### Creating a Project with Initial Folders
+### Creating a Project with Nested Initial Folders
+
+```bash
+POST /proyectos
+Content-Type: application/json
+
+{
+  "nombre": "Proyecto de Carretera",
+  "creado_por": 1,
+  "division_id": 1,
+  "departamento_id": 1,
+  "unidad_id": 1,
+  "carpeta_inicial": {
+    "Proyecto en Licitación": {
+      "Proyectos": {
+        "Proyecto de Licitación": {},
+        "Proyecto de Adjudicación": {}
+      }
+    }
+  },
+  "etapas_registro": {
+    "etapa_tipo_id": 1,
+    "tipo_iniciativa_id": 1,
+    "usuario_creador": 1
+  }
+}
+```
+
+### Creating a Project with Flat Initial Folders (Backward Compatibility)
 
 ```bash
 POST /proyectos
@@ -143,10 +206,35 @@ GET /proyectos/{id}/carpetas
       "carpetas_hijas": [
         {
           "id": 2,
-          "nombre": "Documentos",
+          "nombre": "Proyecto en Licitación",
           "descripcion": "Carpeta inicial del proyecto",
-          "s3_path": "proyectos/mi_proyecto_123/Documentos",
-          "orden_visualizacion": 1
+          "s3_path": "proyectos/mi_proyecto_123/Proyecto en Licitación",
+          "orden_visualizacion": 1,
+          "carpetas_hijas": [
+            {
+              "id": 3,
+              "nombre": "Proyectos",
+              "descripcion": "Carpeta inicial del proyecto",
+              "s3_path": "proyectos/mi_proyecto_123/Proyecto en Licitación/Proyectos",
+              "orden_visualizacion": 1,
+              "carpetas_hijas": [
+                {
+                  "id": 4,
+                  "nombre": "Proyecto de Licitación",
+                  "descripcion": "Carpeta inicial del proyecto",
+                  "s3_path": "proyectos/mi_proyecto_123/Proyecto en Licitación/Proyectos/Proyecto de Licitación",
+                  "orden_visualizacion": 1
+                },
+                {
+                  "id": 5,
+                  "nombre": "Proyecto de Adjudicación",
+                  "descripcion": "Carpeta inicial del proyecto",
+                  "s3_path": "proyectos/mi_proyecto_123/Proyecto en Licitación/Proyectos/Proyecto de Adjudicación",
+                  "orden_visualizacion": 2
+                }
+              ]
+            }
+          ]
         }
       ]
     }
@@ -171,37 +259,93 @@ MINIO_BUCKET=gestor-files
 
 To configure automatic folder creation for specific etapa types, update the `carpetas_iniciales` field in the `etapas_tipo` table:
 
-### Using SQL
+### Using SQL - Nested Structure Example
 ```sql
--- Example for "Diseño" etapa tipo
+-- Example for "Licitación" etapa tipo with nested structure
+UPDATE etapas_tipo 
+SET carpetas_iniciales = '{
+  "Proyecto en Licitación": {
+    "Proyectos": {
+      "Proyecto de Licitación": {},
+      "Proyecto de Adjudicación": {}
+    }
+  }
+}'
+WHERE nombre = 'Licitación';
+```
+
+### Using SQL - Complex Nested Structure Example
+```sql
+-- Example for "Diseño" etapa tipo with complex nested structure
+UPDATE etapas_tipo 
+SET carpetas_iniciales = '{
+  "Diseño": {
+    "Planos": {
+      "Planos Arquitectónicos": {},
+      "Planos Estructurales": {},
+      "Planos Mecánicos": {},
+      "Planos Eléctricos": {}
+    },
+    "Especificaciones": {
+      "Especificaciones Técnicas": {},
+      "Especificaciones de Materiales": {}
+    },
+    "Memorias": {
+      "Memoria de Cálculo": {},
+      "Memoria Descriptiva": {}
+    }
+  }
+}'
+WHERE nombre = 'Diseño';
+```
+
+### Using SQL - Flat Structure (Backward Compatibility)
+```sql
+-- Example for "General" etapa tipo with flat structure
 UPDATE etapas_tipo 
 SET carpetas_iniciales = '[
-  {"nombre": "Diseños"},
-  {"nombre": "Planos de Diseño"},
-  {"nombre": "Especificaciones"},
-  {"nombre": "Memorias de Cálculo"},
-  {"nombre": "Renderizados"}
+  {"nombre": "Documentos"},
+  {"nombre": "Planos"},
+  {"nombre": "Fotos"},
+  {"nombre": "Contratos"},
+  {"nombre": "Estudios"}
 ]'
-WHERE nombre = 'Diseño';
+WHERE nombre = 'General';
 ```
 
 ### Using Prisma
 ```typescript
+// Nested structure example
 await prisma.etapas_tipo.update({
-  where: { nombre: 'Diseño' },
+  where: { nombre: 'Licitación' },
+  data: {
+    carpetas_iniciales: {
+      "Proyecto en Licitación": {
+        "Proyectos": {
+          "Proyecto de Licitación": {},
+          "Proyecto de Adjudicación": {}
+        }
+      }
+    }
+  }
+});
+
+// Flat structure example (backward compatibility)
+await prisma.etapas_tipo.update({
+  where: { nombre: 'General' },
   data: {
     carpetas_iniciales: [
-      { nombre: "Diseños" },
-      { nombre: "Planos de Diseño" },
-      { nombre: "Especificaciones" },
-      { nombre: "Memorias de Cálculo" },
-      { nombre: "Renderizados" }
+      { nombre: "Documentos" },
+      { nombre: "Planos" },
+      { nombre: "Fotos" },
+      { nombre: "Contratos" },
+      { nombre: "Estudios" }
     ]
   }
 });
 ```
 
-See `scripts/etapa-tipo-carpetas-example.sql` for more examples.
+See `scripts/test-nested-folders.sql` for more examples.
 
 ## Error Handling
 
@@ -212,63 +356,65 @@ See `scripts/etapa-tipo-carpetas-example.sql` for more examples.
 ## Implementation Details
 
 ### Files Modified
-- `src/utils/minio-utils.ts` - MinIO utility functions
-- `src/utils/carpeta-db-utils.ts` - Database operations for carpetas table
+- `src/utils/minio-utils.ts` - MinIO utility functions with nested folder support
+- `src/utils/carpeta-db-utils.ts` - Database operations for carpetas table with nested structure support
 - `src/http/routes/proyectos/proyectos.ts` - Project creation endpoint with DB integration
 
 ### Key Features
-- Automatic bucket creation if it doesn't exist
-- Sanitized folder names (removes special characters)
-- Recursive folder creation
-- Error handling and logging
-- Non-blocking folder creation (project creation continues even if folders fail)
-- Automatic folder creation from etapa_tipo carpetas_iniciales
-- Support for multiple JSON structures in carpetas_iniciales
+- **Backward Compatibility** - Supports both flat and nested structures
+- **Automatic bucket creation** if it doesn't exist
+- **Sanitized folder names** (removes special characters)
+- **Recursive folder creation** for nested structures
+- **Error handling and logging**
+- **Non-blocking folder creation** (project creation continues even if folders fail)
+- **Automatic folder creation** from etapa_tipo carpetas_iniciales
+- **Support for multiple JSON structures** in carpetas_iniciales
 - **Database records creation** - Creates records in the `carpetas` table for all folders
 - **Project folder hierarchy** - Maintains parent-child relationships between folders
 - **Folder metadata** - Stores S3 paths, permissions, and configuration in database
+- **Proper descriptions** - Different descriptions for initial folders vs etapa tipo folders
 
 ## Testing
 
-To test the folder creation:
+To test the nested folder creation:
 
 1. Ensure MinIO is running and accessible
 2. Set the required environment variables
-3. Create a project with the `carpeta_inicial` parameter
-4. Check the MinIO console or use the `/files` endpoint to verify folder creation
+3. Run the SQL examples from `scripts/test-nested-folders.sql` and `scripts/test-nested-etapa-tipo.sql`
+4. Create a project with the new nested `carpeta_inicial` structure
+5. Verify that both MinIO folders and database records are created correctly
+6. Check that proper descriptions are assigned to folders (initial vs etapa tipo)
 
-## Troubleshooting
+### Example Test Cases
 
-### Common Issues
+1. **Nested Structure Test:**
+   ```json
+   {
+     "carpeta_inicial": {
+       "Proyecto en Licitación": {
+         "Proyectos": {
+           "Proyecto de Licitación": {},
+           "Proyecto de Adjudicación": {}
+         }
+       }
+     }
+   }
+   ```
 
-1. **MinIO Connection Failed**
-   - Check if MinIO is running
-   - Verify environment variables
-   - Check network connectivity
+2. **Flat Structure Test (Backward Compatibility):**
+   ```json
+   {
+     "carpeta_inicial": {
+       "carpetas": [
+         {"nombre": "Documentos"},
+         {"nombre": "Planos"},
+         {"nombre": "Fotos"}
+       ]
+     }
+   }
+   ```
 
-2. **Bucket Creation Failed**
-   - Ensure MinIO credentials are correct
-   - Check MinIO permissions
-
-3. **Folder Creation Failed**
-   - Check MinIO logs
-   - Verify bucket exists
-   - Check folder name sanitization
-
-4. **Prisma Schema Validation Errors**
-   - Run `npx prisma generate` after schema changes
-   - Check for duplicate relation names in schema
-   - Verify all relations have unique names
-
-5. **Database Record Creation Failed**
-   - Check database connection
-   - Verify table structure matches schema
-   - Check for required fields and constraints
-
-### Logs
-
-The system provides detailed logging for debugging:
-- Project folder creation status
-- Initial folder creation status
-- Error messages with context
-- MinIO operation results 
+3. **Mixed Structure Test:**
+   - Use nested structure in `carpeta_inicial`
+   - Use flat structure in `etapas_tipo.carpetas_iniciales`
+   - Verify both work correctly together 

@@ -17,6 +17,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           descripcion: z.string().optional(),
           carpeta_padre_id: z.number().optional(),
           proyecto_id: z.number().optional(),
+          etapa_tipo_id: z.number(),
           usuario_creador: z.number(),
           orden_visualizacion: z.number().optional().default(0),
           max_tamaño_mb: z.number().optional(),
@@ -31,6 +32,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             descripcion: z.string().nullable(),
             carpeta_padre_id: z.number().nullable(),
             proyecto_id: z.number().nullable(),
+            etapa_tipo_id: z.number().nullable(),
             s3_path: z.string(),
             s3_bucket_name: z.string().nullable(),
             s3_created: z.boolean(),
@@ -45,7 +47,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             activa: z.boolean()
           }),
           400: z.object({
-            message: z.string()
+            message: z.string(),
+            carpeta_existente: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              s3_path: z.string()
+            }).optional()
           }),
           500: z.object({
             message: z.string()
@@ -59,6 +66,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           descripcion,
           carpeta_padre_id,
           proyecto_id,
+          etapa_tipo_id,
           usuario_creador,
           orden_visualizacion = 0,
           max_tamaño_mb,
@@ -104,6 +112,19 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           }
         }
 
+        // Si se especifica etapa_tipo_id, validar que existe
+        if (etapa_tipo_id) {
+          const etapaTipo = await prisma.etapas_tipo.findUnique({
+            where: { id: etapa_tipo_id }
+          });
+
+          if (!etapaTipo) {
+            return reply.status(400).send({
+              message: 'Tipo de etapa no encontrado'
+            });
+          }
+        }
+
         // Construir el path de S3
         let s3Path = '';
         
@@ -132,6 +153,27 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           s3Path = nombre;
         }
 
+        // Verificar si ya existe una carpeta con el mismo nombre en el mismo nivel
+        const carpetaExistente = await prisma.carpetas.findFirst({
+          where: {
+            nombre: nombre,
+            carpeta_padre_id: carpeta_padre_id || null,
+            proyecto_id: proyecto_id || null,
+            activa: true
+          }
+        });
+
+        if (carpetaExistente) {
+          return reply.status(400).send({
+            message: `Ya existe una carpeta con el nombre "${nombre}" en esta ubicación`,
+            carpeta_existente: {
+              id: carpetaExistente.id,
+              nombre: carpetaExistente.nombre,
+              s3_path: carpetaExistente.s3_path
+            }
+          });
+        }
+
         // Crear la carpeta en MinIO
         try {
           await MinIOUtils.createFolder(s3Path);
@@ -150,6 +192,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             descripcion,
             carpeta_padre_id,
             proyecto_id,
+            etapa_tipo_id,
             s3_path: s3Path,
             s3_bucket_name: process.env.MINIO_BUCKET,
             s3_created: true,
@@ -840,6 +883,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             descripcion: z.string().nullable(),
             carpeta_padre_id: z.number().nullable(),
             proyecto_id: z.number().nullable(),
+            etapa_tipo_id: z.number().nullable(),
             s3_path: z.string(),
             s3_bucket_name: z.string().nullable(),
             s3_created: z.boolean(),

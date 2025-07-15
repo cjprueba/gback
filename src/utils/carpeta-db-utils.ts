@@ -5,6 +5,7 @@ export interface CarpetaDBData {
   descripcion?: string;
   carpeta_padre_id?: number;
   proyecto_id?: number;
+  etapa_tipo_id?: number;
   concesion_id?: number;
   division_id?: number;
   departamento_id?: number;
@@ -16,6 +17,11 @@ export interface CarpetaDBData {
   tipos_archivo_permitidos?: string[];
   permisos_lectura?: string[];
   permisos_escritura?: string[];
+}
+
+// New interface for nested folder structure
+export interface NestedFolderStructure {
+  [key: string]: NestedFolderStructure | {};
 }
 
 export class CarpetaDBUtils {
@@ -30,6 +36,7 @@ export class CarpetaDBUtils {
           descripcion: carpetaData.descripcion,
           carpeta_padre_id: carpetaData.carpeta_padre_id,
           proyecto_id: carpetaData.proyecto_id,
+          etapa_tipo_id: carpetaData.etapa_tipo_id,
           concesion_id: carpetaData.concesion_id,
           division_id: carpetaData.division_id,
           departamento_id: carpetaData.departamento_id,
@@ -95,18 +102,22 @@ export class CarpetaDBUtils {
 
   /**
    * Creates folder records for initial folders
+   * Now supports both flat and nested structures
    */
   static async createInitialFoldersDB(
     projectId: number,
     projectFolderPath: string,
     carpetaInicial: any,
     usuarioCreador: number,
-    carpetaPadreId?: number
+    carpetaPadreId?: number,
+    etapaTipoId?: number
   ) {
     try {
       const carpetasCreadas = [];
 
+      // Check if it's the old flat structure
       if (carpetaInicial && carpetaInicial.carpetas && Array.isArray(carpetaInicial.carpetas)) {
+        // Handle old flat structure
         for (let i = 0; i < carpetaInicial.carpetas.length; i++) {
           const folder = carpetaInicial.carpetas[i];
           const folderPath = `${projectFolderPath}/${folder.nombre}`;
@@ -116,6 +127,7 @@ export class CarpetaDBUtils {
             descripcion: `Carpeta inicial del proyecto`,
             proyecto_id: projectId,
             carpeta_padre_id: carpetaPadreId,
+            etapa_tipo_id: etapaTipoId,
             s3_path: folderPath,
             usuario_creador: usuarioCreador,
             orden_visualizacion: i + 1
@@ -123,6 +135,18 @@ export class CarpetaDBUtils {
 
           carpetasCreadas.push(carpeta);
         }
+      } else {
+        // Handle new nested structure
+        const nestedCarpetas = await this.createNestedFolderStructureDB(
+          projectId,
+          projectFolderPath,
+          carpetaInicial as NestedFolderStructure,
+          usuarioCreador,
+          carpetaPadreId,
+          etapaTipoId,
+          'Carpeta inicial del proyecto' // Pass description for initial folders
+        );
+        carpetasCreadas.push(...nestedCarpetas);
       }
 
       console.log(`Created ${carpetasCreadas.length} initial folder DB records`);
@@ -135,13 +159,15 @@ export class CarpetaDBUtils {
 
   /**
    * Creates folder records for etapa tipo folders
+   * Now supports both flat and nested structures
    */
   static async createEtapaTipoFoldersDB(
     projectId: number,
     projectFolderPath: string,
     etapaTipoCarpetas: any,
     usuarioCreador: number,
-    carpetaPadreId?: number
+    carpetaPadreId?: number,
+    etapaTipoId?: number
   ) {
     try {
       const carpetasCreadas = [];
@@ -161,6 +187,7 @@ export class CarpetaDBUtils {
                 descripcion: `Carpeta del tipo de etapa`,
                 proyecto_id: projectId,
                 carpeta_padre_id: carpetaPadreId,
+                etapa_tipo_id: etapaTipoId,
                 s3_path: folderPath,
                 usuario_creador: usuarioCreador,
                 orden_visualizacion: orden++
@@ -180,6 +207,7 @@ export class CarpetaDBUtils {
                 descripcion: `Carpeta del tipo de etapa`,
                 proyecto_id: projectId,
                 carpeta_padre_id: carpetaPadreId,
+                etapa_tipo_id: etapaTipoId,
                 s3_path: folderPath,
                 usuario_creador: usuarioCreador,
                 orden_visualizacion: orden++
@@ -189,22 +217,42 @@ export class CarpetaDBUtils {
             }
           }
         } else if (typeof carpetasIniciales === 'object') {
-          // Structure: { "folder1": {...}, "folder2": {...} }
-          for (const [folderName, folderData] of Object.entries(carpetasIniciales)) {
-            if (typeof folderName === 'string') {
-              const folderPath = `${projectFolderPath}/${folderName}`;
-              
-              const carpeta = await this.createCarpeta({
-                nombre: folderName,
-                descripcion: `Carpeta del tipo de etapa`,
-                proyecto_id: projectId,
-                carpeta_padre_id: carpetaPadreId,
-                s3_path: folderPath,
-                usuario_creador: usuarioCreador,
-                orden_visualizacion: orden++
-              });
+          // Check if it's a nested structure or flat structure
+          const hasNestedStructure = Object.values(carpetasIniciales).some(value => 
+            typeof value === 'object' && value !== null && Object.keys(value).length > 0
+          );
+          
+          if (hasNestedStructure) {
+            // Handle nested structure
+            const nestedCarpetas = await this.createNestedFolderStructureDB(
+              projectId,
+              projectFolderPath,
+              carpetasIniciales as NestedFolderStructure,
+              usuarioCreador,
+              carpetaPadreId,
+              etapaTipoId,
+              'Carpeta del tipo de etapa' // Pass description for etapa tipo folders
+            );
+            carpetasCreadas.push(...nestedCarpetas);
+          } else {
+            // Handle flat structure: { "folder1": {...}, "folder2": {...} }
+            for (const [folderName, folderData] of Object.entries(carpetasIniciales)) {
+              if (typeof folderName === 'string') {
+                const folderPath = `${projectFolderPath}/${folderName}`;
+                
+                const carpeta = await this.createCarpeta({
+                  nombre: folderName,
+                  descripcion: `Carpeta del tipo de etapa`,
+                  proyecto_id: projectId,
+                  carpeta_padre_id: carpetaPadreId,
+                  etapa_tipo_id: etapaTipoId,
+                  s3_path: folderPath,
+                  usuario_creador: usuarioCreador,
+                  orden_visualizacion: orden++
+                });
 
-              carpetasCreadas.push(carpeta);
+                carpetasCreadas.push(carpeta);
+              }
             }
           }
         }
@@ -216,6 +264,56 @@ export class CarpetaDBUtils {
       console.error('Error creating etapa tipo folders DB records:', error);
       throw error;
     }
+  }
+
+  /**
+   * Recursively creates nested folder structure database records
+   */
+  private static async createNestedFolderStructureDB(
+    projectId: number,
+    basePath: string,
+    folderStructure: NestedFolderStructure,
+    usuarioCreador: number,
+    carpetaPadreId?: number,
+    etapaTipoId?: number,
+    descripcion?: string
+  ): Promise<any[]> {
+    const carpetasCreadas = [];
+    let orden = 1;
+
+    for (const [folderName, subStructure] of Object.entries(folderStructure)) {
+      const folderPath = `${basePath}/${folderName}`;
+      
+      // Create the current folder record
+      const carpeta = await this.createCarpeta({
+        nombre: folderName,
+        descripcion: descripcion || `Carpeta inicial del proyecto`,
+        proyecto_id: projectId,
+        carpeta_padre_id: carpetaPadreId,
+        etapa_tipo_id: etapaTipoId,
+        s3_path: folderPath,
+        usuario_creador: usuarioCreador,
+        orden_visualizacion: orden++
+      });
+
+      carpetasCreadas.push(carpeta);
+      
+      // If subStructure is not empty, recursively create subfolder records
+      if (typeof subStructure === 'object' && subStructure !== null && Object.keys(subStructure).length > 0) {
+        const subCarpetas = await this.createNestedFolderStructureDB(
+          projectId,
+          folderPath,
+          subStructure as NestedFolderStructure,
+          usuarioCreador,
+          carpeta.id,
+          etapaTipoId,
+          descripcion // Pass the same description to subfolders
+        );
+        carpetasCreadas.push(...subCarpetas);
+      }
+    }
+
+    return carpetasCreadas;
   }
 
   /**

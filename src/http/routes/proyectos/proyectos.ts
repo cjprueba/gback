@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import z from 'zod'
 import { prisma } from '@/lib/prisma';
-import { MinIOUtils, FolderStructure, CarpetaInicial, EtapaTipoCarpetas } from '@/utils/minio-utils';
+import { MinIOUtils, FolderStructure, CarpetaInicial, EtapaTipoCarpetas, NestedFolderStructure } from '@/utils/minio-utils';
 import { CarpetaDBUtils } from '@/utils/carpeta-db-utils';
 
 export async function proyectosRoutes(fastify: FastifyInstance) {
@@ -11,15 +11,20 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ['Proyectos'],
         summary: 'Crear un nuevo proyecto',
-        description: 'Crea un nuevo proyecto con su estructura de carpetas inicial y etapa de registro. El endpoint permite crear carpetas en MinIO y registros en la base de datos de forma automática.',
+        description: 'Crea un nuevo proyecto con su estructura de carpetas inicial y etapa de registro. El endpoint permite crear carpetas en MinIO y registros en la base de datos de forma automática. Soporta tanto estructuras planas como anidadas para carpetas iniciales.',
         body: z.object({
           // Campos de proyecto
           nombre: z.string().max(255),
-          carpeta_inicial: z.object({
-            carpetas: z.array(z.object({
-              nombre: z.string()
-            }))
-          }).optional(),
+          carpeta_inicial: z.union([
+            // Old flat structure
+            z.object({
+              carpetas: z.array(z.object({
+                nombre: z.string()
+              }))
+            }),
+            // New nested structure
+            z.record(z.any())
+          ]).optional(),
           //estado: z.string().max(50).optional(),
           //fecha_inicio: z.string().date().optional(),
           //fecha_termino: z.string().date().optional(),
@@ -77,7 +82,9 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       });
 
       // Si se incluye información de etapas_registro, crear la etapa después del proyecto
+      let etapaTipoId = null;
       if (etapas_registro) {
+        etapaTipoId = etapas_registro.etapa_tipo_id;
         await prisma.etapas_registro.create({
           data: {
             etapa_tipo_id: etapas_registro.etapa_tipo_id,
@@ -136,7 +143,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           
           try {
             // Crear carpetas en MinIO
-            await MinIOUtils.createInitialFolders(projectFolderPath, datosProyecto.carpeta_inicial as CarpetaInicial);
+            await MinIOUtils.createInitialFolders(projectFolderPath, datosProyecto.carpeta_inicial as CarpetaInicial | NestedFolderStructure);
             console.log('Initial folders created successfully in MinIO for project:', proyecto.nombre);
             
             // Crear registros en la base de datos
@@ -145,7 +152,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               projectFolderPath,
               datosProyecto.carpeta_inicial,
               datosProyecto.creado_por,
-              carpetaRaiz?.id
+              carpetaRaiz?.id,
+              etapaTipoId
             );
             console.log('Initial folders DB records created successfully for project:', proyecto.nombre);
           } catch (folderError) {
@@ -186,7 +194,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                   carpetas_iniciales: etapaTipo.carpetas_iniciales
                 },
                 datosProyecto.creado_por,
-                carpetaRaiz?.id
+                carpetaRaiz?.id,
+                etapaTipoId
               );
               console.log('Etapa tipo folders DB records created successfully for project:', proyecto.nombre);
             } else {
@@ -438,11 +447,16 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
         }),
         body: z.object({
           nombre: z.string().max(255).optional(),
-          carpeta_inicial: z.object({
-            carpetas: z.array(z.object({
-              nombre: z.string()
-            }))
-          }).optional(),
+          carpeta_inicial: z.union([
+            // Old flat structure
+            z.object({
+              carpetas: z.array(z.object({
+                nombre: z.string()
+              }))
+            }),
+            // New nested structure
+            z.record(z.any())
+          ]).optional(),
           division_id: z.number().optional(),
           departamento_id: z.number().optional(),
           unidad_id: z.number().optional(),

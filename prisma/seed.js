@@ -13,6 +13,7 @@ async function main() {
   await prisma.comunas.deleteMany({})
   await prisma.provincias.deleteMany({})
   await prisma.usuarios.deleteMany({})
+  await prisma.etapas_tipo_obras.deleteMany({})
   await prisma.etapas_tipo.deleteMany({})
   await prisma.regiones.deleteMany({})
   await prisma.tipos_obras.deleteMany({})
@@ -36,43 +37,49 @@ async function main() {
   })
 
   // Crear divisiones
-  const divisiones = await prisma.divisiones.createMany({
-    data: [
-      { nombre: 'División de Obras Públicas', descripcion: 'División principal de obras públicas y mantenimiento' },
-      { nombre: 'División de Planificación', descripcion: 'División de planificación y desarrollo urbano' },
-      { nombre: 'División de Fiscalización', descripcion: 'División de control y fiscalización de obras' },
-      { nombre: 'División de Infraestructura', descripcion: 'División de infraestructura vial y transporte' },
-      { nombre: 'División de Desarrollo Regional', descripcion: 'División de desarrollo regional y territorial' }
-    ]
+  const division1 = await prisma.divisiones.create({
+    data: { nombre: 'División de Obras Públicas', descripcion: 'División principal de obras públicas y mantenimiento' }
+  })
+  const division2 = await prisma.divisiones.create({
+    data: { nombre: 'División de Planificación', descripcion: 'División de planificación y desarrollo urbano' }
+  })
+  const division3 = await prisma.divisiones.create({
+    data: { nombre: 'División de Fiscalización', descripcion: 'División de control y fiscalización de obras' }
+  })
+  const division4 = await prisma.divisiones.create({
+    data: { nombre: 'División de Infraestructura', descripcion: 'División de infraestructura vial y transporte' }
+  })
+  const division5 = await prisma.divisiones.create({
+    data: { nombre: 'División de Desarrollo Regional', descripcion: 'División de desarrollo regional y territorial' }
   })
 
   // Crear departamentos
   const departamentos = await prisma.departamentos.createMany({
     data: [
       // Departamentos de División de Obras Públicas
-      { nombre: 'Departamento de Construcción', descripcion: 'Departamento de construcción de obras públicas', division_id: 1 },
-      { nombre: 'Departamento de Mantenimiento', descripcion: 'Departamento de mantenimiento de obras', division_id: 1 },
-      { nombre: 'Departamento de Supervisión', descripcion: 'Departamento de supervisión de obras', division_id: 1 },
+      { nombre: 'Departamento de Construcción', descripcion: 'Departamento de construcción de obras públicas', division_id: division1.id },
+      { nombre: 'Departamento de Mantenimiento', descripcion: 'Departamento de mantenimiento de obras', division_id: division1.id },
+      { nombre: 'Departamento de Supervisión', descripcion: 'Departamento de supervisión de obras', division_id: division1.id },
       
       // Departamentos de División de Planificación
-      { nombre: 'Departamento de Planificación Urbana', descripcion: 'Departamento de planificación urbana y territorial', division_id: 2 },
-      { nombre: 'Departamento de Estudios', descripcion: 'Departamento de estudios y proyectos', division_id: 2 },
-      { nombre: 'Departamento de Desarrollo Sostenible', descripcion: 'Departamento de desarrollo sostenible', division_id: 2 },
+      { nombre: 'Departamento de Planificación Urbana', descripcion: 'Departamento de planificación urbana y territorial', division_id: division2.id },
+      { nombre: 'Departamento de Estudios', descripcion: 'Departamento de estudios y proyectos', division_id: division2.id },
+      { nombre: 'Departamento de Desarrollo Sostenible', descripcion: 'Departamento de desarrollo sostenible', division_id: division2.id },
       
       // Departamentos de División de Fiscalización
-      { nombre: 'Departamento de Control de Calidad', descripcion: 'Departamento de control de calidad de obras', division_id: 3 },
-      { nombre: 'Departamento de Auditoría', descripcion: 'Departamento de auditoría de proyectos', division_id: 3 },
-      { nombre: 'Departamento de Inspección', descripcion: 'Departamento de inspección técnica', division_id: 3 },
+      { nombre: 'Departamento de Control de Calidad', descripcion: 'Departamento de control de calidad de obras', division_id: division3.id },
+      { nombre: 'Departamento de Auditoría', descripcion: 'Departamento de auditoría de proyectos', division_id: division3.id },
+      { nombre: 'Departamento de Inspección', descripcion: 'Departamento de inspección técnica', division_id: division3.id },
       
       // Departamentos de División de Infraestructura
-      { nombre: 'Departamento de Vialidad', descripcion: 'Departamento de vialidad y transporte', division_id: 4 },
-      { nombre: 'Departamento de Puentes', descripcion: 'Departamento de puentes y estructuras', division_id: 4 },
-      { nombre: 'Departamento de Señalización', descripcion: 'Departamento de señalización vial', division_id: 4 },
+      { nombre: 'Departamento de Vialidad', descripcion: 'Departamento de vialidad y transporte', division_id: division4.id },
+      { nombre: 'Departamento de Puentes', descripcion: 'Departamento de puentes y estructuras', division_id: division4.id },
+      { nombre: 'Departamento de Señalización', descripcion: 'Departamento de señalización vial', division_id: division4.id },
       
       // Departamentos de División de Desarrollo Regional
-      { nombre: 'Departamento de Desarrollo Local', descripcion: 'Departamento de desarrollo local', division_id: 5 },
-      { nombre: 'Departamento de Cooperación', descripcion: 'Departamento de cooperación interregional', division_id: 5 },
-      { nombre: 'Departamento de Gestión Territorial', descripcion: 'Departamento de gestión territorial', division_id: 5 }
+      { nombre: 'Departamento de Desarrollo Local', descripcion: 'Departamento de desarrollo local', division_id: division5.id },
+      { nombre: 'Departamento de Cooperación', descripcion: 'Departamento de cooperación interregional', division_id: division5.id },
+      { nombre: 'Departamento de Gestión Territorial', descripcion: 'Departamento de gestión territorial', division_id: division5.id }
     ]
   })
 
@@ -197,41 +204,175 @@ async function main() {
       { 
         nombre: 'Cartera de proyectos', 
         descripcion: 'Etapa de inicio de proyecto',
-        // Todos los campos están en true por defecto
+        color: 'rgb(52, 152, 219)',
+        carpetas_iniciales: {
+          "Desarrollo de Proyectos": {},
+          "División Participación Medio Ambiente y Territorio": {},
+          "Jurídica": {},
+          "Ingeniería": {},
+          "División de Administración y Finanzas": {},
+          "División de Estudios y Análisis Financiero": {},
+          "Expropiaciones": {}
+        },
+        // Solo habilitar los campos específicos para Cartera de proyectos
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        plazo_total_concesion: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false,
+        fecha_recepcion_ofertas_tecnicas: false,
+        fecha_apertura_ofertas_economicas: false,
+        fecha_inicio_concesion: false,
+        decreto_adjudicacion: false,
+        sociedad_concesionaria: false,
+        inspector_fiscal_id: false
       },
       { 
         nombre: 'Proyectos en Licitación', 
         descripcion: 'Proceso de licitación',
+        color: 'rgb(241, 196, 15)',
+        carpetas_iniciales: {
+          "Proyecto en Licitación": {
+            "Proyectos": {
+              "Proyecto de Licitación": {},
+              "Proyecto de Adjudicación": {}
+            }
+          }
+        },
+        // Solo habilitar los campos específicos para Proyectos en Licitación
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
         fecha_llamado_licitacion: true,
         fecha_recepcion_ofertas_tecnicas: true,
-        fecha_apertura_ofertas_economicas: true
-      },
-      { 
-        nombre: 'Concesiones en Operación', 
-        descripcion: '-',
-        decreto_adjudicacion: true,
-        sociedad_concesionaria: true
+        fecha_apertura_ofertas_economicas: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false,
+        fecha_inicio_concesion: false,
+        plazo_total_concesion: false,
+        decreto_adjudicacion: false,
+        sociedad_concesionaria: false,
+        inspector_fiscal_id: false
       },
       { 
         nombre: 'Concesiones en Construcción', 
         descripcion: '-',
+        color: 'rgb(231, 76, 60)',
+        carpetas_iniciales: {
+          "Coordinación Técnica": {
+            "Subcarpetas": {
+              "Coordinación Técnica": {},
+              "Contratos de Asesorías": {},
+              "Coordinación Técnica ": {}
+            }
+          },
+          "Departamento": {},
+          "Expropiaciones": {},
+          "Ingeniería": {}
+        },
+        // Solo habilitar los campos específicos para Concesiones en Construcción
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
         fecha_inicio_concesion: true,
         plazo_total_concesion: true,
-        inspector_fiscal_id: true
+        inspector_fiscal_id: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false
+      },
+      { 
+        nombre: 'Concesiones en Operación', 
+        descripcion: '-',
+        color: 'rgb(46, 204, 113)',
+        // Solo habilitar los campos específicos para Concesiones en Operación
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
+        fecha_inicio_concesion: true,
+        plazo_total_concesion: true,
+        inspector_fiscal_id: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false
       },
       { 
         nombre: 'Concesiones en Operación y Construcción', 
         descripcion: '-',
+        color: 'rgb(155, 89, 182)',
+        // Solo habilitar los campos específicos para Concesiones en Operación y Construcción
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
         fecha_inicio_concesion: true,
         plazo_total_concesion: true,
-        inspector_fiscal_id: true
+        inspector_fiscal_id: true,
+        // Deshabilitar todos los demás campos
+        valor_referencia: false,
+        bip: false
       },
       { 
         nombre: 'Concesiones Finalizadas', 
         descripcion: '-',
+        color: 'rgb(127, 140, 141)',
+        // Solo habilitar los campos específicos para Concesiones Finalizadas
+        tipo_iniciativa: true,
+        tipo_obra: true,
+        region: true,
+        provincia: true,
+        comuna: true,
+        volumen: true,
+        presupuesto_oficial: true,
+        valor_referencia: true,
+        fecha_llamado_licitacion: true,
+        fecha_recepcion_ofertas_tecnicas: true,
+        fecha_apertura_ofertas_economicas: true,
+        decreto_adjudicacion: true,
+        sociedad_concesionaria: true,
         fecha_inicio_concesion: true,
         plazo_total_concesion: true,
-        inspector_fiscal_id: true
+        // Deshabilitar todos los demás campos
+        bip: false,
+        inspector_fiscal_id: false
       }
     ]
   })
@@ -355,15 +496,13 @@ async function main() {
     where: { nombre: 'Administrador' }
   })
 
-  const primeraDiv = await prisma.divisiones.findFirst()
-
-  if (adminPerfil && primeraDiv) {
+  if (adminPerfil) {
     await prisma.usuarios.create({
       data: {
         nombre_completo: 'Administrador del Sistema',
         correo_electronico: 'cris@sistema.cl',
         perfil_id: adminPerfil.id,
-        division_id: primeraDiv.id,
+        division_id: division1.id,
         activo: true
       }
     })
@@ -414,47 +553,47 @@ async function main() {
       { codigo: '136', nombre: 'Talagante', region_id: 7 },
       
       // Región del Libertador General Bernardo O'Higgins (VI)
-      { codigo: '061', nombre: 'Cachapoal', region_id: 8 },
-      { codigo: '062', nombre: 'Colchagua', region_id: 8 },
-      { codigo: '063', nombre: 'Cardenal Caro', region_id: 8 },
+      { codigo: '081', nombre: 'Cachapoal', region_id: 8 },
+      { codigo: '082', nombre: 'Colchagua', region_id: 8 },
+      { codigo: '083', nombre: 'Cardenal Caro', region_id: 8 },
       
       // Región del Maule (VII)
-      { codigo: '071', nombre: 'Curicó', region_id: 9 },
-      { codigo: '072', nombre: 'Talca', region_id: 9 },
-      { codigo: '073', nombre: 'Linares', region_id: 9 },
-      { codigo: '074', nombre: 'Cauquenes', region_id: 9 },
+      { codigo: '091', nombre: 'Curicó', region_id: 9 },
+      { codigo: '092', nombre: 'Talca', region_id: 9 },
+      { codigo: '093', nombre: 'Linares', region_id: 9 },
+      { codigo: '094', nombre: 'Cauquenes', region_id: 9 },
       
       // Región del Biobío (VIII)
-      { codigo: '081', nombre: 'Concepción', region_id: 10 },
-      { codigo: '082', nombre: 'Ñuble', region_id: 10 },
-      { codigo: '083', nombre: 'Biobío', region_id: 10 },
-      { codigo: '084', nombre: 'Arauco', region_id: 10 },
+      { codigo: '101', nombre: 'Concepción', region_id: 10 },
+      { codigo: '102', nombre: 'Ñuble', region_id: 10 },
+      { codigo: '103', nombre: 'Biobío', region_id: 10 },
+      { codigo: '104', nombre: 'Arauco', region_id: 10 },
       
       // Región de la Araucanía (IX)
-      { codigo: '091', nombre: 'Cautín', region_id: 11 },
-      { codigo: '092', nombre: 'Malleco', region_id: 11 },
+      { codigo: '111', nombre: 'Cautín', region_id: 11 },
+      { codigo: '112', nombre: 'Malleco', region_id: 11 },
       
       // Región de Los Ríos (XIV)
-      { codigo: '141', nombre: 'Valdivia', region_id: 12 },
-      { codigo: '142', nombre: 'Ranco', region_id: 12 },
+      { codigo: '121', nombre: 'Valdivia', region_id: 12 },
+      { codigo: '122', nombre: 'Ranco', region_id: 12 },
       
       // Región de Los Lagos (X)
-      { codigo: '101', nombre: 'Llanquihue', region_id: 13 },
-      { codigo: '102', nombre: 'Chiloé', region_id: 13 },
-      { codigo: '103', nombre: 'Osorno', region_id: 13 },
-      { codigo: '104', nombre: 'Palena', region_id: 13 },
+      { codigo: '105', nombre: 'Llanquihue', region_id: 13 },
+      { codigo: '106', nombre: 'Chiloé', region_id: 13 },
+      { codigo: '107', nombre: 'Osorno', region_id: 13 },
+      { codigo: '108', nombre: 'Palena', region_id: 13 },
       
       // Región de Aysén del General Carlos Ibáñez del Campo (XI)
-      { codigo: '111', nombre: 'Coyhaique', region_id: 14 },
-      { codigo: '112', nombre: 'Aysén', region_id: 14 },
-      { codigo: '113', nombre: 'General Carrera', region_id: 14 },
-      { codigo: '114', nombre: 'Capitán Prat', region_id: 14 },
+      { codigo: '141', nombre: 'Coyhaique', region_id: 14 },
+      { codigo: '142', nombre: 'Aysén', region_id: 14 },
+      { codigo: '143', nombre: 'General Carrera', region_id: 14 },
+      { codigo: '144', nombre: 'Capitán Prat', region_id: 14 },
       
       // Región de Magallanes y de la Antártica Chilena (XII)
-      { codigo: '121', nombre: 'Magallanes', region_id: 15 },
-      { codigo: '122', nombre: 'Antártica Chilena', region_id: 15 },
-      { codigo: '123', nombre: 'Tierra del Fuego', region_id: 15 },
-      { codigo: '124', nombre: 'Última Esperanza', region_id: 15 }
+      { codigo: '151', nombre: 'Magallanes', region_id: 15 },
+      { codigo: '152', nombre: 'Antártica Chilena', region_id: 15 },
+      { codigo: '153', nombre: 'Tierra del Fuego', region_id: 15 },
+      { codigo: '154', nombre: 'Última Esperanza', region_id: 15 }
     ]
   })
 

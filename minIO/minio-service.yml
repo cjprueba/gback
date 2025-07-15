@@ -11,5 +11,5 @@ spec:
       port: 9000
       targetPort: 9000
     - name: minio-alt
-      port: 41935
-      targetPort: 41935
+      port: 42535
+      targetPort: 42535
