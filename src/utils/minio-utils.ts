@@ -24,6 +24,11 @@ export interface CarpetaInicial {
   carpetas: FolderStructure[];
 }
 
+// New interface for nested folder structure
+export interface NestedFolderStructure {
+  [key: string]: NestedFolderStructure | {};
+}
+
 export interface EtapaTipoCarpetas {
   carpetas_iniciales: any; // JSON field from etapas_tipo table
 }
@@ -92,14 +97,22 @@ export class MinIOUtils {
 
   /**
    * Creates initial folders based on the carpeta_inicial JSON structure
+   * Now supports both flat and nested structures
    */
   static async createInitialFolders(
     projectFolderPath: string, 
-    carpetaInicial: CarpetaInicial
+    carpetaInicial: CarpetaInicial | NestedFolderStructure
   ): Promise<void> {
     try {
-      for (const folder of carpetaInicial.carpetas) {
-        await this.createFolderStructure(projectFolderPath, folder);
+      // Check if it's the old flat structure
+      if ('carpetas' in carpetaInicial && Array.isArray(carpetaInicial.carpetas)) {
+        // Handle old flat structure
+        for (const folder of carpetaInicial.carpetas) {
+          await this.createFolderStructure(projectFolderPath, folder);
+        }
+      } else {
+        // Handle new nested structure
+        await this.createNestedFolderStructure(projectFolderPath, carpetaInicial as NestedFolderStructure);
       }
       console.log('Initial folders created successfully');
     } catch (error) {
@@ -110,6 +123,7 @@ export class MinIOUtils {
 
   /**
    * Creates folders based on etapa_tipo carpetas_iniciales
+   * Now supports both flat and nested structures
    */
   static async createEtapaTipoFolders(
     projectFolderPath: string, 
@@ -135,10 +149,20 @@ export class MinIOUtils {
             }
           }
         } else if (typeof carpetasIniciales === 'object') {
-          // Structure: { "folder1": {...}, "folder2": {...} }
-          for (const [folderName, folderData] of Object.entries(carpetasIniciales)) {
-            if (typeof folderName === 'string') {
-              await this.createFolderStructure(projectFolderPath, { nombre: folderName });
+          // Check if it's a nested structure or flat structure
+          const hasNestedStructure = Object.values(carpetasIniciales).some(value => 
+            typeof value === 'object' && value !== null && Object.keys(value).length > 0
+          );
+          
+          if (hasNestedStructure) {
+            // Handle nested structure
+            await this.createNestedFolderStructure(projectFolderPath, carpetasIniciales as NestedFolderStructure);
+          } else {
+            // Handle flat structure: { "folder1": {...}, "folder2": {...} }
+            for (const [folderName, folderData] of Object.entries(carpetasIniciales)) {
+              if (typeof folderName === 'string') {
+                await this.createFolderStructure(projectFolderPath, { nombre: folderName });
+              }
             }
           }
         }
@@ -152,7 +176,27 @@ export class MinIOUtils {
   }
 
   /**
-   * Recursively creates folder structure
+   * Recursively creates nested folder structure
+   */
+  private static async createNestedFolderStructure(
+    basePath: string, 
+    folderStructure: NestedFolderStructure
+  ): Promise<void> {
+    for (const [folderName, subStructure] of Object.entries(folderStructure)) {
+      const folderPath = `${basePath}/${folderName}`;
+      
+      // Create the current folder
+      await this.createFolder(folderPath);
+      
+      // If subStructure is not empty, recursively create subfolders
+      if (typeof subStructure === 'object' && subStructure !== null && Object.keys(subStructure).length > 0) {
+        await this.createNestedFolderStructure(folderPath, subStructure as NestedFolderStructure);
+      }
+    }
+  }
+
+  /**
+   * Recursively creates folder structure (for backward compatibility)
    */
   private static async createFolderStructure(
     basePath: string, 

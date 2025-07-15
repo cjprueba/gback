@@ -116,7 +116,7 @@ model etapas_tipo {
   id          Int    @id @default(autoincrement())
   nombre      String @db.VarChar(100)
   descripcion String?
-  color       String? @db.VarChar(7)
+  color       String? @db.VarChar(20)
   carpetas_iniciales Json @default("{}")
   
   // Información de la etapa
