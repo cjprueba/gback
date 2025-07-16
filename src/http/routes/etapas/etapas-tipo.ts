@@ -8,6 +8,7 @@ const createEtapaTipoSchema = z.object({
   nombre: z.string().min(1, 'Nombre es requerido').max(100, 'Nombre no puede exceder 100 caracteres'),
   descripcion: z.string().optional(),
   color: z.string().optional(),
+  carpetas_iniciales: z.record(z.any()).optional().default({}),
   
   // Campos booleanos para configurar qué información se requiere
   tipo_iniciativa: z.boolean().default(true),
@@ -58,7 +59,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             id: z.number(),
             nombre: z.string(),
             descripcion: z.string().nullable(),
-            color: z.string().nullable()
+            color: z.string().nullable(),
+            carpetas_iniciales: z.record(z.any())
           }))
         })
       }
@@ -91,6 +93,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             nombre: z.string(),
             descripcion: z.string().nullable(),
             color: z.string().nullable(),
+            carpetas_iniciales: z.record(z.any()),
             tipos_obra: z.array(z.object({
               id: z.number(),
               nombre: z.string()
@@ -126,6 +129,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       nombre: etapa.nombre,
       descripcion: etapa.descripcion,
       color: (etapa as any).color || null,
+      carpetas_iniciales: etapa.carpetas_iniciales || {},
       tipos_obra: etapa.etapas_tipo_obras.map(etapaTipoObra => ({
         id: etapaTipoObra.tipo_obra.id,
         nombre: etapaTipoObra.tipo_obra.nombre
@@ -156,7 +160,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             id: z.number(),
             nombre: z.string(),
             descripcion: z.string().nullable(),
-            color: z.string().nullable()
+            color: z.string().nullable(),
+            carpetas_iniciales: z.record(z.any())
           })
         })
       }
@@ -169,6 +174,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       nombre: body.nombre,
       descripcion: body.descripcion || null,
       color: body.color || null,
+      carpetas_iniciales: body.carpetas_iniciales || {},
       tipo_iniciativa: body.tipo_iniciativa,
       tipo_obra: body.tipo_obra,
       region: body.region,
@@ -203,7 +209,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     schema: {
       tags: ['Etapas Tipo'],
       summary: 'Actualizar tipo de etapa existente',
-      description: 'Actualiza un tipo de etapa existente. Permite modificar el nombre, descripción, color y los campos requeridos para las etapas de este tipo.',
+      description: 'Actualiza un tipo de etapa existente. Permite modificar el nombre, descripción, color, carpetas iniciales y los campos requeridos para las etapas de este tipo.',
       params: etapaTipoParamsSchema,
       body: updateEtapaTipoSchema,
       response: {
@@ -214,7 +220,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             id: z.number(),
             nombre: z.string(),
             descripcion: z.string().nullable(),
-            color: z.string().nullable()
+            color: z.string().nullable(),
+            carpetas_iniciales: z.record(z.any())
           })
         })
       }
@@ -253,6 +260,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             nombre: z.string(),
             descripcion: z.string().nullable(),
             color: z.string().nullable(),
+            carpetas_iniciales: z.record(z.any()),
             tipo_iniciativa: z.boolean(),
             tipo_obra: z.boolean(),
             bip: z.boolean(),
@@ -299,6 +307,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         nombre: etapa.nombre,
         descripcion: etapa.descripcion,
         color: etapa.color || null,
+        carpetas_iniciales: etapa.carpetas_iniciales || {},
         tipo_iniciativa: etapa.tipo_iniciativa,
         tipo_obra: etapa.tipo_obra,
         bip: etapa.bip,
