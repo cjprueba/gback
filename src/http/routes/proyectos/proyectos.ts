@@ -311,7 +311,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 etapa_tipo: z.object({
                   id: z.number(),
                   nombre: z.string(),
-                  descripcion: z.string().nullable()
+                  descripcion: z.string().nullable(),
+                  color: z.string().nullable()
                 }),
                 tipo_iniciativa: z.object({
                   id: z.number(),
@@ -395,7 +396,14 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               fecha_creacion: 'desc'
             },
             include: {
-              etapa_tipo: true,
+              etapa_tipo: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  descripcion: true,
+                  color: true
+                }
+              },
               tipo_iniciativa: true,
               tipo_obra: true,
               region: true,
