@@ -270,11 +270,8 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   }, async (request) => {
     const { etapaId } = request.params;
     
-    const etapa = await prisma.etapas_registro.findUnique({
-      where: { id: etapaId },
-      include: {
-        etapa_tipo: true
-      }
+    const etapa = await prisma.etapas_tipo.findUnique({
+      where: { id: etapaId }
     });
     
     if (!etapa) {
@@ -288,26 +285,26 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       success: true,
       message: 'Tipo de etapa obtenido exitosamente',
       data: {
-        id: etapa.etapa_tipo.id,
-        nombre: etapa.etapa_tipo.nombre,
-        descripcion: etapa.etapa_tipo.descripcion,
-        color: (etapa.etapa_tipo as any).color || null,
-        tipo_iniciativa: etapa.etapa_tipo.tipo_iniciativa,
-        tipo_obra: etapa.etapa_tipo.tipo_obra,
-        bip: etapa.etapa_tipo.bip,
-        region: etapa.etapa_tipo.region,
-        provincia: etapa.etapa_tipo.provincia,
-        comuna: etapa.etapa_tipo.comuna,
-        volumen: etapa.etapa_tipo.volumen,
-        presupuesto_oficial: etapa.etapa_tipo.presupuesto_oficial,
-        fecha_llamado_licitacion: etapa.etapa_tipo.fecha_llamado_licitacion,
-        fecha_recepcion_ofertas_tecnicas: etapa.etapa_tipo.fecha_recepcion_ofertas_tecnicas,
-        fecha_apertura_ofertas_economicas: etapa.etapa_tipo.fecha_apertura_ofertas_economicas,
-        fecha_inicio_concesion: etapa.etapa_tipo.fecha_inicio_concesion,
-        plazo_total_concesion: etapa.etapa_tipo.plazo_total_concesion,
-        decreto_adjudicacion: etapa.etapa_tipo.decreto_adjudicacion,
-        sociedad_concesionaria: etapa.etapa_tipo.sociedad_concesionaria,
-        inspector_fiscal_id: etapa.etapa_tipo.inspector_fiscal_id
+        id: etapa.id,
+        nombre: etapa.nombre,
+        descripcion: etapa.descripcion,
+        color: etapa.color || null,
+        tipo_iniciativa: etapa.tipo_iniciativa,
+        tipo_obra: etapa.tipo_obra,
+        bip: etapa.bip,
+        region: etapa.region,
+        provincia: etapa.provincia,
+        comuna: etapa.comuna,
+        volumen: etapa.volumen,
+        presupuesto_oficial: etapa.presupuesto_oficial,
+        fecha_llamado_licitacion: etapa.fecha_llamado_licitacion,
+        fecha_recepcion_ofertas_tecnicas: etapa.fecha_recepcion_ofertas_tecnicas,
+        fecha_apertura_ofertas_economicas: etapa.fecha_apertura_ofertas_economicas,
+        fecha_inicio_concesion: etapa.fecha_inicio_concesion,
+        plazo_total_concesion: etapa.plazo_total_concesion,
+        decreto_adjudicacion: etapa.decreto_adjudicacion,
+        sociedad_concesionaria: etapa.sociedad_concesionaria,
+        inspector_fiscal_id: etapa.inspector_fiscal_id
       }
     };
   });
