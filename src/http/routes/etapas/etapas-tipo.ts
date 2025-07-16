@@ -79,6 +79,9 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
       tags: ['Etapas Tipo'],
       summary: 'Obtener tipos de etapa con sus tipos de obra asociados',
       description: 'Retorna una lista de tipos de etapa incluyendo los tipos de obra que están asociados a cada uno. Esta información es útil para mostrar las relaciones entre etapas y tipos de obra en la interfaz de usuario.',
+      querystring: z.object({
+        etapa_tipo_id: z.string().regex(/^\d+$/, 'Etapa tipo ID debe ser un número válido').transform(Number).optional()
+      }),
       response: {
         200: z.object({
           success: z.boolean(),
@@ -96,8 +99,13 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         })
       }
     }
-  }, async () => {
+  }, async (request) => {
+    const { etapa_tipo_id } = request.query;
+    
+    const whereClause = etapa_tipo_id ? { id: etapa_tipo_id } : {};
+    
     const etapasTipo = await prisma.etapas_tipo.findMany({
+      where: whereClause,
       include: {
         etapas_tipo_obras: {
           include: {
@@ -126,7 +134,9 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     
     return {
       success: true,
-      message: 'Lista de tipos de etapa con sus tipos de obra obtenida exitosamente',
+      message: etapa_tipo_id 
+        ? `Tipo de etapa ${etapa_tipo_id} con sus tipos de obra obtenido exitosamente`
+        : 'Lista de tipos de etapa con sus tipos de obra obtenida exitosamente',
       data: etapasTipoConObras
     };
   });
