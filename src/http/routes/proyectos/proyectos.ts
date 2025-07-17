@@ -699,5 +699,305 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           message: 'Error al obtener las carpetas del proyecto'
         });
       }
+    })
+
+    .patch('/proyectos/:id/cambiar-etapa', {
+      schema: {
+        tags: ['Proyectos'],
+        summary: 'Cambia la etapa activa de un proyecto',
+        description: 'Cambia la etapa activa de un proyecto. Desactiva la etapa actual y activa la nueva etapa especificada. Incluye validación para asegurar que solo una etapa esté activa por proyecto.',
+        params: z.object({
+          id: z.string().transform((val) => parseInt(val, 10))
+        }),
+        body: z.object({
+          etapa_tipo_id: z.number().int().min(1, 'ID de tipo de etapa es requerido'),
+          tipo_iniciativa_id: z.number().int().min(1).optional(),
+          tipo_obra_id: z.number().int().min(1).optional(),
+          region_id: z.number().int().min(1).optional(),
+          provincia_id: z.number().int().min(1).optional(),
+          comuna_id: z.number().int().min(1).optional(),
+          volumen: z.string().optional(),
+          presupuesto_oficial: z.string().optional(),
+          valor_referencia: z.string().max(255).optional(),
+          bip: z.string().optional(),
+          fecha_llamado_licitacion: z.string().datetime().optional(),
+          fecha_recepcion_ofertas_tecnicas: z.string().datetime().optional(),
+          fecha_apertura_ofertas_economicas: z.string().datetime().optional(),
+          decreto_adjudicacion: z.string().optional(),
+          sociedad_concesionaria: z.string().max(255).optional(),
+          fecha_inicio_concesion: z.string().datetime().optional(),
+          plazo_total_concesion: z.string().optional(),
+          inspector_fiscal_id: z.number().int().min(1).optional(),
+          usuario_creador: z.number().int().min(1, 'Usuario creador es requerido')
+        }),
+        response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              proyecto_id: z.number(),
+              etapa_anterior: z.object({
+                id: z.number(),
+                etapa_tipo_id: z.number(),
+                nombre_etapa: z.string()
+              }).nullable(),
+              etapa_nueva: z.object({
+                id: z.number(),
+                etapa_tipo_id: z.number(),
+                nombre_etapa: z.string()
+              })
+            })
+          }),
+          404: z.object({
+            success: z.boolean(),
+            message: z.string()
+          }),
+          400: z.object({
+            success: z.boolean(),
+            message: z.string()
+          })
+        }
+      }
+    }, async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body;
+      
+      try {
+        // Verificar que el proyecto existe
+        const proyecto = await prisma.proyectos.findUnique({
+          where: { id },
+          include: {
+            etapas_registro: {
+              where: { activa: true },
+              include: {
+                etapa_tipo: true
+              }
+            }
+          }
+        });
+        
+        if (!proyecto) {
+          return reply.status(404).send({
+            success: false,
+            message: 'Proyecto no encontrado'
+          });
+        }
+
+        // Verificar que el tipo de etapa existe
+        const etapaTipo = await prisma.etapas_tipo.findUnique({
+          where: { id: body.etapa_tipo_id }
+        });
+
+        if (!etapaTipo) {
+          return reply.status(400).send({
+            success: false,
+            message: 'Tipo de etapa no encontrado'
+          });
+        }
+
+        // Obtener la etapa actual activa
+        const etapaActual = proyecto.etapas_registro[0]; // Solo debería haber una activa
+
+        // Desactivar la etapa actual si existe
+        if (etapaActual) {
+          await prisma.etapas_registro.update({
+            where: { id: etapaActual.id },
+            data: { activa: false }
+          });
+        }
+
+        // Crear la nueva etapa
+        const nuevaEtapa = await prisma.etapas_registro.create({
+          data: {
+            etapa_tipo_id: body.etapa_tipo_id,
+            proyecto_id: id,
+            tipo_iniciativa_id: body.tipo_iniciativa_id,
+            tipo_obra_id: body.tipo_obra_id,
+            region_id: body.region_id,
+            provincia_id: body.provincia_id,
+            comuna_id: body.comuna_id,
+            volumen: body.volumen,
+            presupuesto_oficial: body.presupuesto_oficial,
+            valor_referencia: body.valor_referencia,
+            bip: body.bip,
+            fecha_llamado_licitacion: body.fecha_llamado_licitacion ? new Date(body.fecha_llamado_licitacion) : null,
+            fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas ? new Date(body.fecha_recepcion_ofertas_tecnicas) : null,
+            fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas ? new Date(body.fecha_apertura_ofertas_economicas) : null,
+            decreto_adjudicacion: body.decreto_adjudicacion,
+            sociedad_concesionaria: body.sociedad_concesionaria,
+            fecha_inicio_concesion: body.fecha_inicio_concesion ? new Date(body.fecha_inicio_concesion) : null,
+            plazo_total_concesion: body.plazo_total_concesion,
+            inspector_fiscal_id: body.inspector_fiscal_id,
+            fecha_creacion: new Date(),
+            fecha_actualizacion: new Date(),
+            activa: true,
+            usuario_creador: body.usuario_creador
+          },
+          include: {
+            etapa_tipo: true
+          }
+        });
+
+        return reply.status(200).send({
+          success: true,
+          message: 'Etapa del proyecto cambiada exitosamente',
+          data: {
+            proyecto_id: id,
+            etapa_anterior: etapaActual ? {
+              id: etapaActual.id,
+              etapa_tipo_id: etapaActual.etapa_tipo_id,
+              nombre_etapa: etapaActual.etapa_tipo.nombre
+            } : null,
+            etapa_nueva: {
+              id: nuevaEtapa.id,
+              etapa_tipo_id: nuevaEtapa.etapa_tipo_id,
+              nombre_etapa: nuevaEtapa.etapa_tipo.nombre
+            }
+          }
+        });
+
+      } catch (error) {
+        console.error('Error changing project stage:', error);
+        return reply.status(500).send({
+          success: false,
+          message: 'Error al cambiar la etapa del proyecto'
+        });
+      }
+    })
+
+    .get('/proyectos/:id/etapa-actual', {
+      schema: {
+        tags: ['Proyectos'],
+        summary: 'Obtener la etapa actual del proyecto',
+        description: 'Retorna la información completa de la etapa actualmente activa del proyecto, incluyendo todos los datos de la etapa y sus relaciones.',
+        params: z.object({
+          id: z.string().transform((val) => parseInt(val, 10))
+        }),
+        response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              proyecto_id: z.number(),
+              etapa_actual: z.object({
+                id: z.number(),
+                etapa_tipo_id: z.number(),
+                etapa_tipo: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable(),
+                  color: z.string().nullable()
+                }),
+                tipo_iniciativa: z.object({
+                  id: z.number(),
+                  nombre: z.string()
+                }).nullable(),
+                tipo_obra: z.object({
+                  id: z.number(),
+                  nombre: z.string()
+                }).nullable(),
+                region: z.object({
+                  id: z.number(),
+                  codigo: z.string(),
+                  nombre: z.string(),
+                  nombre_corto: z.string().nullable()
+                }).nullable(),
+                provincia: z.object({
+                  id: z.number(),
+                  codigo: z.string(),
+                  nombre: z.string()
+                }).nullable(),
+                comuna: z.object({
+                  id: z.number(),
+                  codigo: z.string(),
+                  nombre: z.string()
+                }).nullable(),
+                volumen: z.string().nullable(),
+                presupuesto_oficial: z.string().nullable(),
+                valor_referencia: z.string().nullable(),
+                bip: z.string().nullable(),
+                fecha_llamado_licitacion: z.date().nullable(),
+                fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
+                fecha_apertura_ofertas_economicas: z.date().nullable(),
+                decreto_adjudicacion: z.string().nullable(),
+                sociedad_concesionaria: z.string().nullable(),
+                fecha_inicio_concesion: z.date().nullable(),
+                plazo_total_concesion: z.string().nullable(),
+                inspector_fiscal: z.object({
+                  id: z.number(),
+                  nombre_completo: z.string().nullable(),
+                  correo_electronico: z.string().nullable()
+                }).nullable()
+              }).nullable()
+            })
+          }),
+          404: z.object({
+            success: z.boolean(),
+            message: z.string()
+          })
+        }
+      }
+    }, async (request, reply) => {
+      const { id } = request.params;
+      
+      try {
+        // Verificar que el proyecto existe
+        const proyecto = await prisma.proyectos.findUnique({
+          where: { id }
+        });
+        
+        if (!proyecto) {
+          return reply.status(404).send({
+            success: false,
+            message: 'Proyecto no encontrado'
+          });
+        }
+
+        // Obtener la etapa actual activa del proyecto
+        const etapaActual = await prisma.etapas_registro.findFirst({
+          where: {
+            proyecto_id: id,
+            activa: true
+          },
+          include: {
+            etapa_tipo: {
+              select: {
+                id: true,
+                nombre: true,
+                descripcion: true,
+                color: true
+              }
+            },
+            tipo_iniciativa: true,
+            tipo_obra: true,
+            region: true,
+            provincia: true,
+            comuna: true,
+            inspector_fiscal: {
+              select: {
+                id: true,
+                nombre_completo: true,
+                correo_electronico: true
+              }
+            }
+          }
+        });
+
+        return {
+          success: true,
+          message: 'Etapa actual del proyecto obtenida exitosamente',
+          data: {
+            proyecto_id: id,
+            etapa_actual: etapaActual
+          }
+        };
+
+      } catch (error) {
+        console.error('Error getting current project stage:', error);
+        return reply.status(500).send({
+          success: false,
+          message: 'Error al obtener la etapa actual del proyecto'
+        });
+      }
     });
 }
