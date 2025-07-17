@@ -593,4 +593,401 @@ export async function documentosRoutes(app: FastifyInstance) {
       }
     );
 
+  // Enhanced direct download endpoint (alternative to presigned URLs)
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/documentos/:documentoId/download-direct',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Descargar documento directamente (alternativa a URLs presignadas)',
+          description: 'Descarga un documento directamente a través del servidor con características mejoradas como descargas por chunks',
+          params: z.object({
+            documentoId: z.string().uuid(),
+          }),
+          querystring: z.object({
+            chunked: z.boolean().optional().default(false),
+            filename: z.string().optional()
+          }),
+          // No response schema - allows any response type including streams
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { documentoId } = request.params;
+          const { chunked = false, filename } = request.query as { 
+            chunked?: boolean; 
+            filename?: string 
+          };
+
+          // Get document (excluding deleted ones for download)
+          const documento = await (prisma as any).documentos.findFirst({
+            where: {
+              id: documentoId,
+              eliminado: false,
+            },
+          });
+
+          if (!documento) {
+            throw new BadRequestError('Document not found or has been deleted');
+          }
+
+          // Check if document has S3 path
+          if (!(documento as any).s3_path) {
+            throw new BadRequestError('Document not found in storage');
+          }
+
+          const path = (documento as any).s3_path;
+          const fileName = filename || documento.nombre_archivo || path.split('/').pop() || 'file';
+
+          // Get file stats first
+          const stats = await minioClient.statObject(BUCKET_NAME, path);
+          const fileSize = stats.size;
+          const contentType = stats.metaData?.['content-type'] || documento.tipo_mime || 'application/octet-stream';
+
+          // Check if client supports range requests
+          const range = request.headers.range;
+          const supportsRange = range && chunked;
+
+          if (supportsRange) {
+            // Handle range requests for chunked downloads
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            const chunksize = (end - start) + 1;
+
+            // Validate range
+            if (start >= fileSize || end >= fileSize) {
+              reply.status(416).send({
+                error: 'Requested range not satisfiable'
+              });
+              return;
+            }
+
+            // Set headers for partial content
+            reply.status(206);
+            reply.header('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+            reply.header('Accept-Ranges', 'bytes');
+            reply.header('Content-Length', chunksize);
+            reply.header('Content-Type', contentType);
+            reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
+
+            // Get partial stream
+            const stream = await minioClient.getPartialObject(BUCKET_NAME, path, start, end);
+            return reply.send(stream as any);
+          } else {
+            // Regular download
+            const stream = await minioClient.getObject(BUCKET_NAME, path);
+            
+            // Set headers
+            reply.header('Content-Type', contentType);
+            reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
+            reply.header('Content-Length', fileSize);
+            reply.header('Accept-Ranges', 'bytes');
+            
+            // Return file info for non-streaming requests
+            if (request.headers.accept?.includes('application/json')) {
+              return reply.send({
+                success: true,
+                message: 'File information retrieved successfully',
+                fileInfo: {
+                  name: fileName,
+                  size: fileSize,
+                  type: contentType,
+                  path: path
+                }
+              });
+            }
+            
+            // Return the stream
+            return reply.send(stream as any);
+          }
+        } catch (error: any) {
+          console.error('Error downloading document:', error);
+          
+          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+            throw error;
+          }
+          
+          if (error.code === 'NotFound') {
+            return reply.status(404).send({
+              error: 'File not found'
+            });
+          }
+          
+          if (error.code === 'NoSuchBucket') {
+            return reply.status(500).send({
+              error: 'Storage bucket not found'
+            });
+          }
+          
+          return reply.status(500).send({
+            error: 'Failed to download file'
+          });
+        }
+      }
+    );
+
+  // Download document with metadata
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/documentos/:documentoId/download-with-info',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Descargar documento con información de metadatos',
+          description: 'Obtiene información del documento y opcionalmente genera una URL de descarga',
+          params: z.object({
+            documentoId: z.string().uuid(),
+          }),
+          querystring: z.object({
+            includeMetadata: z.boolean().optional().default(true)
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              message: z.string(),
+              metadata: z.object({
+                name: z.string(),
+                size: z.number(),
+                type: z.string(),
+                path: z.string(),
+                lastModified: z.date().optional(),
+                etag: z.string().optional(),
+                versionId: z.string().optional()
+              }),
+              downloadUrl: z.string().optional()
+            }),
+            400: z.object({
+              error: z.string()
+            }),
+            404: z.object({
+              error: z.string()
+            }),
+            500: z.object({
+              error: z.string()
+            })
+          }
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { documentoId } = request.params;
+          const { includeMetadata = true } = request.query as { 
+            includeMetadata?: boolean 
+          };
+
+          // Get document (excluding deleted ones for download)
+          const documento = await (prisma as any).documentos.findFirst({
+            where: {
+              id: documentoId,
+              eliminado: false,
+            },
+          });
+
+          if (!documento) {
+            throw new BadRequestError('Document not found or has been deleted');
+          }
+
+          // Check if document has S3 path
+          if (!(documento as any).s3_path) {
+            throw new BadRequestError('Document not found in storage');
+          }
+
+          const path = (documento as any).s3_path;
+          const fileName = documento.nombre_archivo || path.split('/').pop() || 'file';
+
+          // Get file stats
+          const stats = await minioClient.statObject(BUCKET_NAME, path);
+
+          const metadata = {
+            name: fileName,
+            size: stats.size,
+            type: stats.metaData?.['content-type'] || documento.tipo_mime || 'application/octet-stream',
+            path: path,
+            lastModified: stats.lastModified,
+            etag: stats.etag,
+            versionId: stats.versionId
+          };
+
+          if (includeMetadata) {
+            return reply.send({
+              success: true,
+              message: 'File metadata retrieved successfully',
+              metadata: metadata
+            });
+          } else {
+            // Generate a temporary download URL
+            const downloadUrl = await minioClient.presignedGetObject(
+              BUCKET_NAME,
+              path,
+              60 * 60 // 1 hour expiration
+            );
+
+            return reply.send({
+              success: true,
+              message: 'File information and download URL generated',
+              metadata: metadata,
+              downloadUrl: downloadUrl
+            });
+          }
+        } catch (error: any) {
+          console.error('Error getting document info:', error);
+          
+          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+            throw error;
+          }
+          
+          if (error.code === 'NotFound') {
+            return reply.status(404).send({
+              error: 'File not found'
+            });
+          }
+          
+          return reply.status(500).send({
+            error: 'Failed to get file information'
+          });
+        }
+      }
+    );
+
+  // Download document as base64
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/documentos/:documentoId/download-base64',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Descargar documento como string base64',
+          description: 'Descarga un documento como string codificado en base64, útil para archivos pequeños o incrustar en respuestas JSON',
+          params: z.object({
+            documentoId: z.string().uuid(),
+          }),
+          querystring: z.object({
+            maxSize: z.number().optional().default(10 * 1024 * 1024) // 10MB default max
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              message: z.string(),
+              data: z.object({
+                filename: z.string(),
+                extension: z.string().nullable(),
+                size: z.number(),
+                type: z.string(),
+                base64: z.string(),
+                path: z.string()
+              })
+            }),
+            400: z.object({
+              error: z.string()
+            }),
+            404: z.object({
+              error: z.string()
+            }),
+            413: z.object({
+              error: z.string()
+            }),
+            500: z.object({
+              error: z.string()
+            })
+          }
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { documentoId } = request.params;
+          const { maxSize = 10 * 1024 * 1024 } = request.query as { 
+            maxSize?: number 
+          };
+
+          // Get document (excluding deleted ones for download)
+          const documento = await (prisma as any).documentos.findFirst({
+            where: {
+              id: documentoId,
+              eliminado: false,
+            },
+          });
+
+          if (!documento) {
+            throw new BadRequestError('Document not found or has been deleted');
+          }
+
+          // Check if document has S3 path
+          if (!(documento as any).s3_path) {
+            throw new BadRequestError('Document not found in storage');
+          }
+
+          const path = (documento as any).s3_path;
+          const fileName = documento.nombre_archivo || path.split('/').pop() || 'file';
+
+          // Get extension from documentos table
+          const fileExtension = documento.extension;
+
+          // Get file stats first
+          const stats = await minioClient.statObject(BUCKET_NAME, path);
+          const fileSize = stats.size;
+          const contentType = stats.metaData?.['content-type'] || documento.tipo_mime || 'application/octet-stream';
+
+          // Check file size limit
+          if (fileSize > maxSize) {
+            return reply.status(413).send({
+              error: `File too large. Maximum size allowed is ${Math.round(maxSize / 1024 / 1024)}MB`
+            });
+          }
+
+          // Get the file as a stream
+          const stream = await minioClient.getObject(BUCKET_NAME, path);
+          
+          // Convert stream to buffer
+          const chunks: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunks.push(chunk);
+          }
+          const buffer = Buffer.concat(chunks);
+          
+          // Convert to base64
+          const base64 = buffer.toString('base64');
+
+          return reply.send({
+            success: true,
+            message: 'File downloaded successfully as base64',
+            data: {
+              filename: fileName,
+              extension: fileExtension,
+              size: fileSize,
+              type: contentType,
+              base64: base64,
+              path: path
+            }
+          });
+        } catch (error: any) {
+          console.error('Error downloading document as base64:', error);
+          
+          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+            throw error;
+          }
+          
+          if (error.code === 'NotFound') {
+            return reply.status(404).send({
+              error: 'File not found'
+            });
+          }
+          
+          if (error.code === 'NoSuchBucket') {
+            return reply.status(500).send({
+              error: 'Storage bucket not found'
+            });
+          }
+          
+          return reply.status(500).send({
+            error: 'Failed to download file as base64'
+          });
+        }
+      }
+    );
+
 }
