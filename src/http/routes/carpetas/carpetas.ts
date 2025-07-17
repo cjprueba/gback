@@ -1125,12 +1125,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           }
 
           // Validar que no se está intentando mover a una subcarpeta de sí misma
-          const esSubcarpeta = await esSubcarpetaDe(parseInt(id), nueva_carpeta_padre_id);
+          /*const esSubcarpeta = await esSubcarpetaDe(parseInt(id), nueva_carpeta_padre_id);
           if (esSubcarpeta) {
             return reply.status(400).send({
               message: 'No se puede mover una carpeta a una de sus subcarpetas'
             });
-          }
+          }*/
         }
 
         // Obtener información de la carpeta padre para determinar el proyecto
