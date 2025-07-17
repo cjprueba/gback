@@ -536,6 +536,7 @@ model documentos {
   archivo_relacionado         String?   @db.Uuid
   
   carpeta_id                  Int
+  tipo_documento_id          Int?
   
   // Información de S3
   s3_path                     String?   @db.VarChar(500)
@@ -556,6 +557,7 @@ model documentos {
   subio_por           usuarios   @relation("UsuarioSubidor", fields: [subido_por], references: [id])
   proyecto            proyectos? @relation(fields: [proyecto_id], references: [id])
   documento_relacionado documentos? @relation("DocumentosRelacionados", fields: [archivo_relacionado], references: [id])
+  tipo_documento      tipos_documentos? @relation(fields: [tipo_documento_id], references: [id])
 
   // Relaciones inversas
   documentos_relacionados documentos[]           @relation("DocumentosRelacionados")
@@ -604,4 +606,24 @@ model auditorias {
 
   // Relaciones
   usuario usuarios @relation(fields: [usuario_id], references: [id])
+}
+
+model tipos_documentos {
+  id                    Int      @id @default(autoincrement())
+  nombre                String   @db.VarChar(255)
+  descripcion           String?
+  
+  // Requisitos del documento
+  requiere_nro_pro_exp  Boolean  @default(false)
+  requiere_saf_exp      Boolean  @default(false)
+  requiere_numerar      Boolean  @default(false)
+  requiere_tramitar     Boolean  @default(false)
+  
+  // Metadatos
+  activo                Boolean  @default(true)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @default(now()) @updatedAt
+
+  // Relaciones inversas
+  documentos documentos[]
 }
