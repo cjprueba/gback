@@ -24,7 +24,7 @@ export async function documentosRoutes(app: FastifyInstance) {
         schema: {
           tags: ['Documentos'],
           summary: 'Subir un documento a una carpeta',
-          description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos',
+          description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos. El proyecto_id se obtiene automáticamente de la carpeta especificada. El tipo_documento_id es obligatorio.',
           consumes: ['multipart/form-data'],
           response: {
             200: z.object({
@@ -75,23 +75,47 @@ export async function documentosRoutes(app: FastifyInstance) {
           // Parse form fields
           const carpetaId = parseInt((data.fields['carpeta_id'] as any)?.value as string);
           const userId = parseInt((data.fields['user_id'] as any)?.value as string) || 1; // Default to user 1 if not provided
+          const tipoDocumentoId = parseInt((data.fields['tipo_documento_id'] as any)?.value as string);
           const descripcion = (data.fields['descripcion'] as any)?.value as string;
           const categoria = (data.fields['categoria'] as any)?.value as string;
           const etiquetas = (data.fields['etiquetas'] as any)?.value ? JSON.parse((data.fields['etiquetas'] as any).value as string) : [];
-          const proyectoId = (data.fields['proyecto_id'] as any)?.value ? parseInt((data.fields['proyecto_id'] as any).value as string) : null;
           const archivoRelacionado = (data.fields['archivo_relacionado'] as any)?.value as string;
+
+          // Validate required fields
+          if (!tipoDocumentoId || isNaN(tipoDocumentoId)) {
+            throw new BadRequestError('tipo_documento_id is required and must be a valid number');
+          }
 
           console.log('carpetaId', data.fields['carpeta_id']['value']);
 
-          // Validate carpeta exists and get its S3 path
+          // Validate carpeta exists and get its S3 path and proyecto_id
           const carpeta = await (prisma as any).carpetas.findFirst({
             where: {
               id: carpetaId,
+            },
+            include: {
+              proyecto: {
+                select: {
+                  id: true,
+                },
+              },
             },
           });
 
           if (!carpeta) {
             throw new BadRequestError('Folder not found');
+          }
+
+          // Validate tipo_documento exists and is active
+          const tipoDocumento = await (prisma as any).tipos_documentos.findFirst({
+            where: {
+              id: tipoDocumentoId,
+              activo: true,
+            },
+          });
+
+          if (!tipoDocumento) {
+            throw new BadRequestError('Document type not found or is not active');
           }
 
           // Generate file hash for integrity
@@ -120,12 +144,13 @@ export async function documentosRoutes(app: FastifyInstance) {
               version: '1.0',
               archivo_relacionado: archivoRelacionado || null,
               carpeta_id: carpetaId,
+              tipo_documento_id: tipoDocumentoId,
               s3_path: s3Path,
               s3_bucket_name: BUCKET_NAME,
               s3_created: true,
               hash_integridad: hashIntegridad,
               etiquetas: etiquetas,
-              proyecto_id: proyectoId,
+              proyecto_id: carpeta.proyecto?.id || null,
               subido_por: userId,
               usuario_creador: userId,
             } as any,
@@ -985,6 +1010,407 @@ export async function documentosRoutes(app: FastifyInstance) {
           
           return reply.status(500).send({
             error: 'Failed to download file as base64'
+          });
+        }
+      }
+    );
+
+  // Get all document types
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/documentos/tipos',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Obtener todos los tipos de documentos',
+          description: 'Recupera todos los tipos de documentos disponibles con sus requisitos',
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              tipos_documentos: z.array(z.object({
+                id: z.number(),
+                nombre: z.string(),
+                descripcion: z.string().nullable(),
+                requiere_nro_pro_exp: z.boolean(),
+                requiere_saf_exp: z.boolean(),
+                requiere_numerar: z.boolean(),
+                requiere_tramitar: z.boolean(),
+                activo: z.boolean(),
+                created_at: z.date(),
+                updated_at: z.date(),
+              })),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const tiposDocumentos = await prisma.tipos_documentos.findMany({
+            where: {
+              activo: true,
+            },
+            orderBy: {
+              nombre: 'asc',
+            },
+          });
+
+          return reply.send({
+            success: true,
+            tipos_documentos: tiposDocumentos,
+          });
+        } catch (error) {
+          console.error('Error getting document types:', error);
+          
+          return reply.status(500).send({
+            error: 'Failed to get document types',
+          });
+        }
+      }
+    );
+
+  // Get document type by ID
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/documentos/tipos/:id',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Obtener un tipo de documento específico',
+          description: 'Recupera un tipo de documento específico por su ID',
+          params: z.object({
+            id: z.string().transform((val) => parseInt(val)),
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              tipo_documento: z.object({
+                id: z.number(),
+                nombre: z.string(),
+                descripcion: z.string().nullable(),
+                requiere_nro_pro_exp: z.boolean(),
+                requiere_saf_exp: z.boolean(),
+                requiere_numerar: z.boolean(),
+                requiere_tramitar: z.boolean(),
+                activo: z.boolean(),
+                created_at: z.date(),
+                updated_at: z.date(),
+              }),
+            }),
+            404: z.object({
+              error: z.string(),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { id } = request.params;
+
+          const tipoDocumento = await prisma.tipos_documentos.findFirst({
+            where: {
+              id: id,
+              activo: true,
+            },
+          });
+
+          if (!tipoDocumento) {
+            return reply.status(404).send({
+              error: 'Document type not found',
+            });
+          }
+
+          return reply.send({
+            success: true,
+            tipo_documento: tipoDocumento,
+          });
+        } catch (error) {
+          console.error('Error getting document type:', error);
+          
+          return reply.status(500).send({
+            error: 'Failed to get document type',
+          });
+        }
+      }
+    );
+
+  // Create new document type
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .post(
+      '/documentos/tipos',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Crear un nuevo tipo de documento',
+          description: 'Crea un nuevo tipo de documento con sus requisitos',
+          body: z.object({
+            nombre: z.string().min(1, 'Name is required'),
+            descripcion: z.string().nullable().optional(),
+            requiere_nro_pro_exp: z.boolean().default(false),
+            requiere_saf_exp: z.boolean().default(false),
+            requiere_numerar: z.boolean().default(false),
+            requiere_tramitar: z.boolean().default(false),
+          }),
+          response: {
+            201: z.object({
+              success: z.boolean(),
+              message: z.string(),
+              tipo_documento: z.object({
+                id: z.number(),
+                nombre: z.string(),
+                descripcion: z.string().nullable(),
+                requiere_nro_pro_exp: z.boolean(),
+                requiere_saf_exp: z.boolean(),
+                requiere_numerar: z.boolean(),
+                requiere_tramitar: z.boolean(),
+                activo: z.boolean(),
+                created_at: z.date(),
+                updated_at: z.date(),
+              }),
+            }),
+            400: z.object({
+              error: z.string(),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { nombre, descripcion, requiere_nro_pro_exp, requiere_saf_exp, requiere_numerar, requiere_tramitar } = request.body;
+
+          // Check if document type with same name already exists
+          const existingTipo = await prisma.tipos_documentos.findFirst({
+            where: {
+              nombre: nombre,
+              activo: true,
+            },
+          });
+
+          if (existingTipo) {
+            return reply.status(400).send({
+              error: 'Document type with this name already exists',
+            });
+          }
+
+          const tipoDocumento = await prisma.tipos_documentos.create({
+            data: {
+              nombre,
+              descripcion,
+              requiere_nro_pro_exp,
+              requiere_saf_exp,
+              requiere_numerar,
+              requiere_tramitar,
+            },
+          });
+
+          return reply.status(201).send({
+            success: true,
+            message: 'Document type created successfully',
+            tipo_documento: tipoDocumento,
+          });
+        } catch (error) {
+          console.error('Error creating document type:', error);
+          
+          return reply.status(500).send({
+            error: 'Failed to create document type',
+          });
+        }
+      }
+    );
+
+  // Update document type
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .put(
+      '/documentos/tipos/:id',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Actualizar un tipo de documento',
+          description: 'Actualiza un tipo de documento existente',
+          params: z.object({
+            id: z.string().transform((val) => parseInt(val)),
+          }),
+          body: z.object({
+            nombre: z.string().min(1, 'Name is required').optional(),
+            descripcion: z.string().nullable().optional(),
+            requiere_nro_pro_exp: z.boolean().optional(),
+            requiere_saf_exp: z.boolean().optional(),
+            requiere_numerar: z.boolean().optional(),
+            requiere_tramitar: z.boolean().optional(),
+            activo: z.boolean().optional(),
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              message: z.string(),
+              tipo_documento: z.object({
+                id: z.number(),
+                nombre: z.string(),
+                descripcion: z.string().nullable(),
+                requiere_nro_pro_exp: z.boolean(),
+                requiere_saf_exp: z.boolean(),
+                requiere_numerar: z.boolean(),
+                requiere_tramitar: z.boolean(),
+                activo: z.boolean(),
+                created_at: z.date(),
+                updated_at: z.date(),
+              }),
+            }),
+            404: z.object({
+              error: z.string(),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { id } = request.params;
+          const updateData = request.body;
+
+          // Check if document type exists
+          const existingTipo = await prisma.tipos_documentos.findFirst({
+            where: {
+              id: id,
+            },
+          });
+
+          if (!existingTipo) {
+            return reply.status(404).send({
+              error: 'Document type not found',
+            });
+          }
+
+          // If name is being updated, check for duplicates
+          if (updateData.nombre && updateData.nombre !== existingTipo.nombre) {
+            const duplicateTipo = await prisma.tipos_documentos.findFirst({
+              where: {
+                nombre: updateData.nombre,
+                id: { not: id },
+                activo: true,
+              },
+            });
+
+            if (duplicateTipo) {
+              return reply.status(400).send({
+                error: 'Document type with this name already exists',
+              });
+            }
+          }
+
+          const tipoDocumento = await prisma.tipos_documentos.update({
+            where: {
+              id: id,
+            },
+            data: updateData,
+          });
+
+          return reply.send({
+            success: true,
+            message: 'Document type updated successfully',
+            tipo_documento: tipoDocumento,
+          });
+        } catch (error) {
+          console.error('Error updating document type:', error);
+          
+          return reply.status(500).send({
+            error: 'Failed to update document type',
+          });
+        }
+      }
+    );
+
+  // Delete document type (soft delete)
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .delete(
+      '/documentos/tipos/:id',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Eliminar un tipo de documento',
+          description: 'Elimina un tipo de documento (soft delete)',
+          params: z.object({
+            id: z.string().transform((val) => parseInt(val)),
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              message: z.string(),
+            }),
+            404: z.object({
+              error: z.string(),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { id } = request.params;
+
+          // Check if document type exists
+          const existingTipo = await prisma.tipos_documentos.findFirst({
+            where: {
+              id: id,
+            },
+          });
+
+          if (!existingTipo) {
+            return reply.status(404).send({
+              error: 'Document type not found',
+            });
+          }
+
+          // Check if document type is being used by any documents
+          const documentosUsingTipo = await prisma.documentos.findFirst({
+            where: {
+              tipo_documento_id: id,
+              eliminado: false,
+            },
+          });
+
+          if (documentosUsingTipo) {
+            return reply.status(400).send({
+              error: 'Cannot delete document type that is being used by documents',
+            });
+          }
+
+          // Soft delete by setting activo to false
+          await prisma.tipos_documentos.update({
+            where: {
+              id: id,
+            },
+            data: {
+              activo: false,
+            },
+          });
+
+          return reply.send({
+            success: true,
+            message: 'Document type deleted successfully',
+          });
+        } catch (error) {
+          console.error('Error deleting document type:', error);
+          
+          return reply.status(500).send({
+            error: 'Failed to delete document type',
           });
         }
       }

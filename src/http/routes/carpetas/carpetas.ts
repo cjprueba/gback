@@ -686,7 +686,13 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 version: z.string().nullable(),
                 etiquetas: z.array(z.string()),
                 usuario_creador: z.number(),
-                subido_por: z.number()
+                subido_por: z.number(),
+                tipo_documento_id: z.number().nullable(),
+                tipo_documento: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable()
+                }).nullable().optional()
               }))
             }),
             estadisticas: z.object({
@@ -822,6 +828,30 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
               }
             }
           });
+
+          // Obtener información de tipos de documento para los documentos que la tengan
+          const documentosConTipo = await Promise.all(
+            documentos.map(async (doc) => {
+              if (doc.tipo_documento_id) {
+                const tipoDoc = await prisma.tipos_documentos.findUnique({
+                  where: { id: doc.tipo_documento_id },
+                  select: {
+                    id: true,
+                    nombre: true,
+                    descripcion: true
+                  }
+                });
+                return {
+                  ...doc,
+                  tipo_documento: tipoDoc
+                };
+              }
+              return {
+                ...doc,
+                tipo_documento: null
+              };
+            })
+          );
 
           // Convertir BigInt a number para la respuesta
           const documentosFormateados = documentos.map(doc => ({
