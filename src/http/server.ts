@@ -102,7 +102,12 @@ app.register(fastifySwaggerUi, {
 // });
 
 
-app.register(fastifyCors);
+app.register(fastifyCors, {
+  origin: true, // Permite todas las origenes en desarrollo
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
+});
 app.register(testRoute);
 app.register(testPostRoute);
 app.register(testGetDataRoute);
