@@ -118,22 +118,35 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       try {
         // Crear la carpeta principal del proyecto
         const projectFolderPath = await MinIOUtils.createProjectFolder(proyecto.nombre, proyecto.id);
+        console.log(`Project folder created in MinIO: ${projectFolderPath}`);
         
         // Crear registro de carpeta raíz en la base de datos
         let carpetaRaiz = null;
         try {
+          console.log(`Creating root folder for project "${proyecto.nombre}" with ID: ${proyecto.id}`);
           carpetaRaiz = await CarpetaDBUtils.createProjectRootFolder(
             proyecto.id,
             proyecto.nombre,
             projectFolderPath,
-            datosProyecto.creado_por,
-            datosProyecto.division_id,
-            datosProyecto.departamento_id
+            datosProyecto.creado_por
           );
-          console.log('Project root folder DB record created successfully');
+          console.log('Project root folder DB record created successfully with S3 data:', {
+            id: carpetaRaiz.id,
+            nombre: carpetaRaiz.nombre, // Show the folder name (should be project name)
+            s3_path: carpetaRaiz.s3_path,
+            s3_bucket_name: carpetaRaiz.s3_bucket_name,
+            s3_created: carpetaRaiz.s3_created,
+            proyecto_id: carpetaRaiz.proyecto_id
+          });
         } catch (dbError) {
-          console.error('Error creating project root folder DB record:', dbError);
-          // Continue even if DB record creation fails
+          console.error('❌ Error creating project root folder DB record:', dbError);
+          console.error('Error details:', {
+            message: dbError.message,
+            code: dbError.code,
+            meta: dbError.meta
+          });
+          // Don't continue if root folder creation fails - this is critical
+          throw new Error(`Failed to create project root folder: ${dbError.message}`);
         }
 
         // Si hay carpeta_inicial, crear las carpetas iniciales
@@ -147,7 +160,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             console.log('Initial folders created successfully in MinIO for project:', proyecto.nombre);
             
             // Crear registros en la base de datos
-            await CarpetaDBUtils.createInitialFoldersDB(
+            const initialFolders = await CarpetaDBUtils.createInitialFoldersDB(
               proyecto.id,
               projectFolderPath,
               datosProyecto.carpeta_inicial,
@@ -155,7 +168,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               carpetaRaiz?.id,
               etapaTipoId
             );
-            console.log('Initial folders DB records created successfully for project:', proyecto.nombre);
+            console.log(`Initial folders DB records created successfully for project: ${proyecto.nombre}. Created ${initialFolders.length} folders with S3 data.`);
           } catch (folderError) {
             console.error('Error creating initial folders:', folderError);
             // Continue with project creation even if folder creation fails
@@ -187,7 +200,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               console.log('Etapa tipo folders created successfully in MinIO for project:', proyecto.nombre);
               
               // Crear registros en la base de datos
-              await CarpetaDBUtils.createEtapaTipoFoldersDB(
+              const etapaTipoFolders = await CarpetaDBUtils.createEtapaTipoFoldersDB(
                 proyecto.id,
                 projectFolderPath,
                 {
@@ -197,7 +210,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 carpetaRaiz?.id,
                 etapaTipoId
               );
-              console.log('Etapa tipo folders DB records created successfully for project:', proyecto.nombre);
+              console.log(`Etapa tipo folders DB records created successfully for project: ${proyecto.nombre}. Created ${etapaTipoFolders.length} folders with S3 data.`);
             } else {
               console.log('No carpetas_iniciales found for etapa_tipo_id:', etapas_registro.etapa_tipo_id);
             }
@@ -208,6 +221,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
         }
         
         console.log(`Project folders and DB records created successfully for project: ${proyecto.nombre}`);
+        console.log(`S3 bucket used: ${process.env.MINIO_BUCKET || 'gestor-files'}`);
       } catch (error) {
         console.error('Error creating project folders and DB records:', error);
         // No throw error here to avoid failing the project creation
@@ -224,7 +238,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ['Proyectos'],
         summary: 'Obtener lista de proyectos',
-        description: 'Retorna una lista paginada de todos los proyectos con información básica incluyendo el tipo de etapa más reciente y el creador.',
+        description: 'Retorna una lista paginada de todos los proyectos con información básica incluyendo el tipo de etapa más reciente, el creador y la carpeta raíz.',
         response: {
           200: z.object({
             success: z.boolean(),
@@ -233,6 +247,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               id: z.number(),
               nombre: z.string(),
               created_at: z.date(),
+              carpeta_raiz_id: z.number().nullable(),
               
               // Solo etapa_tipo
               etapas_registro: z.array(z.object({
@@ -257,6 +272,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           id: true,
           nombre: true,
           created_at: true,
+          carpeta_raiz_id: true,
           etapas_registro: {
             take: 1,
             orderBy: {
@@ -303,6 +319,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               id: z.number(),
               nombre: z.string(),
               carpeta_inicial: z.any().nullable(),
+              carpeta_raiz_id: z.number().nullable(),
               created_at: z.date(),
               
               // Relaciones
@@ -389,7 +406,12 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       
       const proyecto = await prisma.proyectos.findUnique({
         where: { id },
-        include: {
+        select: {
+          id: true,
+          nombre: true,
+          carpeta_inicial: true,
+          carpeta_raiz_id: true,
+          created_at: true,
           etapas_registro: {
             take: 1,
             orderBy: {
