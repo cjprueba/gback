@@ -7,8 +7,6 @@ export interface CarpetaDBData {
   proyecto_id?: number;
   etapa_tipo_id?: number;
   concesion_id?: number;
-  division_id?: number;
-  departamento_id?: number;
   s3_path: string;
   s3_bucket_name?: string;
   usuario_creador: number;
@@ -30,6 +28,25 @@ export class CarpetaDBUtils {
    */
   static async createCarpeta(carpetaData: CarpetaDBData) {
     try {
+      console.log('Creating carpeta DB record with data:', {
+        nombre: carpetaData.nombre,
+        proyecto_id: carpetaData.proyecto_id,
+        s3_path: carpetaData.s3_path,
+        usuario_creador: carpetaData.usuario_creador
+      });
+
+      // Verify that the user exists
+      const userExists = await prisma.usuarios.findUnique({
+        where: { id: carpetaData.usuario_creador },
+        select: { id: true, nombre_completo: true }
+      });
+
+      if (!userExists) {
+        throw new Error(`User with ID ${carpetaData.usuario_creador} does not exist`);
+      }
+
+      console.log(`✅ User verified: ${userExists.nombre_completo} (ID: ${userExists.id})`);
+
       const carpeta = await prisma.carpetas.create({
         data: {
           nombre: carpetaData.nombre,
@@ -38,8 +55,6 @@ export class CarpetaDBUtils {
           proyecto_id: carpetaData.proyecto_id,
           etapa_tipo_id: carpetaData.etapa_tipo_id,
           concesion_id: carpetaData.concesion_id,
-          division_id: carpetaData.division_id,
-          departamento_id: carpetaData.departamento_id,
           s3_path: carpetaData.s3_path,
           s3_bucket_name: carpetaData.s3_bucket_name || process.env.MINIO_BUCKET,
           s3_created: true,
@@ -53,38 +68,52 @@ export class CarpetaDBUtils {
         } as any
       });
 
-      console.log(`Carpeta DB record created: ${carpeta.nombre} (ID: ${carpeta.id})`);
+      console.log(`✅ Carpeta DB record created successfully: ${carpeta.nombre} (ID: ${carpeta.id})`);
+      console.log(`   - proyecto_id: ${carpeta.proyecto_id}`);
+      console.log(`   - s3_path: ${carpeta.s3_path}`);
+      console.log(`   - s3_bucket_name: ${carpeta.s3_bucket_name}`);
+      console.log(`   - s3_created: ${carpeta.s3_created}`);
       return carpeta;
     } catch (error) {
-      console.error('Error creating carpeta DB record:', error);
+      console.error('❌ Error creating carpeta DB record:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta
+      });
       throw error;
     }
   }
 
   /**
    * Creates the main project folder record
+   * This creates a folder with the project name as the root folder
    */
   static async createProjectRootFolder(
     projectId: number,
     projectName: string,
     projectFolderPath: string,
-    usuarioCreador: number,
-    divisionId?: number,
-    departamentoId?: number
+    usuarioCreador: number
   ) {
     try {
+      console.log(`🔄 Starting createProjectRootFolder for project: ${projectName} (ID: ${projectId})`);
+      console.log(`   - projectFolderPath: ${projectFolderPath}`);
+      console.log(`   - usuarioCreador: ${usuarioCreador}`);
+
+      // Create the root folder record with the project name
       const carpetaRaiz = await this.createCarpeta({
-        nombre: projectName,
+        nombre: projectName, // Use project name as folder name
         descripcion: `Carpeta raíz del proyecto: ${projectName}`,
         proyecto_id: projectId,
         s3_path: projectFolderPath,
         usuario_creador: usuarioCreador,
-        division_id: divisionId,
-        departamento_id: departamentoId,
         orden_visualizacion: 0
       });
 
+      console.log(`✅ Root folder created successfully with ID: ${carpetaRaiz.id}`);
+
       // Update the project with the root folder ID
+      console.log(`🔄 Updating project ${projectId} with carpeta_raiz_id: ${carpetaRaiz.id}`);
       await prisma.proyectos.update({
         where: { id: projectId },
         data: {
@@ -92,10 +121,17 @@ export class CarpetaDBUtils {
         } as any
       });
 
-      console.log(`Project root folder DB record created for project: ${projectName}`);
+      console.log(`✅ Project ${projectId} linked to root folder ${carpetaRaiz.id}`);
+      console.log(`✅ Project root folder DB record created for project: ${projectName} with ID: ${carpetaRaiz.id}`);
+      
       return carpetaRaiz;
     } catch (error) {
-      console.error('Error creating project root folder DB record:', error);
+      console.error('❌ Error creating project root folder DB record:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta
+      });
       throw error;
     }
   }
@@ -342,4 +378,4 @@ export class CarpetaDBUtils {
       throw error;
     }
   }
-} 
+}
