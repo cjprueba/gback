@@ -564,96 +564,96 @@ export  async function etapasRoutes(app: FastifyInstance) {
           success: z.boolean(),
           message: z.string(),
           data: z.object({
-            etapa_actual: z.object({
-              id: z.number(),
-              etapa_tipo_id: z.number(),
-              tipo_iniciativa_id: z.number().nullable(),
-              tipo_obra_id: z.number().nullable(),
-              region_id: z.number().nullable(),
-              provincia_id: z.number().nullable(),
-              comuna_id: z.number().nullable(),
-              volumen: z.string().nullable(),
-              presupuesto_oficial: z.string().nullable(),
-              valor_referencia: z.string().nullable(),
-              bip: z.string().nullable(),
-              fecha_llamado_licitacion: z.date().nullable(),
-              fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
-              fecha_apertura_ofertas_economicas: z.date().nullable(),
-              fecha_inicio_concesion: z.date().nullable(),
-              plazo_total_concesion: z.string().nullable(),
-              decreto_adjudicacion: z.string().nullable(),
-              sociedad_concesionaria: z.string().nullable(),
-              inspector_fiscal_id: z.number().nullable(),
-              usuario_creador: z.number(),
-              fecha_creacion: z.date(),
-              fecha_actualizacion: z.date(),
-              activa: z.boolean(),
-              etapa_tipo: z.object({
-                id: z.number(),
-                nombre: z.string(),
-                descripcion: z.string().nullable(),
-                color: z.string().nullable()
-              }),
-              tipo_iniciativa: z.object({
-                id: z.number(),
-                nombre: z.string()
-              }).nullable(),
-              tipo_obra: z.object({
-                id: z.number(),
-                nombre: z.string()
-              }).nullable(),
-              region: z.object({
-                id: z.number(),
-                nombre: z.string(),
-                codigo: z.string()
-              }).nullable(),
-              provincia: z.object({
-                id: z.number(),
-                nombre: z.string(),
-                codigo: z.string()
-              }).nullable(),
-              comuna: z.object({
-                id: z.number(),
-                nombre: z.string(),
-                codigo: z.string()
-              }).nullable(),
-              inspector_fiscal: z.object({
-                id: z.number(),
-                correo_electronico: z.string().nullable(),
-                nombre_completo: z.string().nullable()
-              }).nullable(),
-              usuario_creador_rel: z.object({
-                id: z.number(),
-                correo_electronico: z.string().nullable(),
-                nombre_completo: z.string().nullable()
-              })
-            }),
             siguiente_etapa: z.object({
-              id: z.number(),
-              nombre: z.string(),
-              descripcion: z.string().nullable(),
-              color: z.string().nullable(),
-              carpetas_iniciales: z.record(z.any()),
-              // Campos booleanos que indican qué información requiere esta etapa
-              tipo_iniciativa: z.boolean(),
-              tipo_obra: z.boolean(),
-              region: z.boolean(),
-              provincia: z.boolean(),
-              comuna: z.boolean(),
-              volumen: z.boolean(),
-              presupuesto_oficial: z.boolean(),
-              valor_referencia: z.boolean(),
-              bip: z.boolean(),
-              fecha_llamado_licitacion: z.boolean(),
-              fecha_recepcion_ofertas_tecnicas: z.boolean(),
-              fecha_apertura_ofertas_economicas: z.boolean(),
-              fecha_inicio_concesion: z.boolean(),
-              plazo_total_concesion: z.boolean(),
-              decreto_adjudicacion: z.boolean(),
-              sociedad_concesionaria: z.boolean(),
-              inspector_fiscal_id: z.boolean()
-            }).nullable(),
-            es_ultima_etapa: z.boolean()
+               id: z.number(),
+               nombre: z.string(),
+               descripcion: z.string().nullable(),
+               color: z.string().nullable(),
+               carpetas_iniciales: z.record(z.any()),
+               // Campos booleanos que indican qué información requiere esta etapa
+               tipo_iniciativa: z.boolean(),
+               tipo_obra: z.boolean(),
+               region: z.boolean(),
+               provincia: z.boolean(),
+               comuna: z.boolean(),
+               volumen: z.boolean(),
+               presupuesto_oficial: z.boolean(),
+               valor_referencia: z.boolean(),
+               bip: z.boolean(),
+               fecha_llamado_licitacion: z.boolean(),
+               fecha_recepcion_ofertas_tecnicas: z.boolean(),
+               fecha_apertura_ofertas_economicas: z.boolean(),
+               fecha_inicio_concesion: z.boolean(),
+               plazo_total_concesion: z.boolean(),
+               decreto_adjudicacion: z.boolean(),
+               sociedad_concesionaria: z.boolean(),
+               inspector_fiscal_id: z.boolean()
+             }).nullable(),
+             etapas_anteriores: z.array(z.object({
+               id: z.number(),
+               etapa_tipo_id: z.number(),
+               tipo_iniciativa_id: z.number().nullable(),
+               tipo_obra_id: z.number().nullable(),
+               region_id: z.number().nullable(),
+               provincia_id: z.number().nullable(),
+               comuna_id: z.number().nullable(),
+               volumen: z.string().nullable(),
+               presupuesto_oficial: z.string().nullable(),
+               valor_referencia: z.string().nullable(),
+               bip: z.string().nullable(),
+               fecha_llamado_licitacion: z.date().nullable(),
+               fecha_recepcion_ofertas_tecnicas: z.date().nullable(),
+               fecha_apertura_ofertas_economicas: z.date().nullable(),
+               fecha_inicio_concesion: z.date().nullable(),
+               plazo_total_concesion: z.string().nullable(),
+               decreto_adjudicacion: z.string().nullable(),
+               sociedad_concesionaria: z.string().nullable(),
+               inspector_fiscal_id: z.number().nullable(),
+               usuario_creador: z.number(),
+               fecha_creacion: z.date(),
+               fecha_actualizacion: z.date(),
+               activa: z.boolean(),
+               etapa_tipo: z.object({
+                 id: z.number(),
+                 nombre: z.string(),
+                 descripcion: z.string().nullable(),
+                 color: z.string().nullable()
+               }),
+               tipo_iniciativa: z.object({
+                 id: z.number(),
+                 nombre: z.string()
+               }).nullable(),
+               tipo_obra: z.object({
+                 id: z.number(),
+                 nombre: z.string()
+               }).nullable(),
+               region: z.object({
+                 id: z.number(),
+                 nombre: z.string(),
+                 codigo: z.string()
+               }).nullable(),
+               provincia: z.object({
+                 id: z.number(),
+                 nombre: z.string(),
+                 codigo: z.string()
+               }).nullable(),
+               comuna: z.object({
+                 id: z.number(),
+                 nombre: z.string(),
+                 codigo: z.string()
+               }).nullable(),
+               inspector_fiscal: z.object({
+                 id: z.number(),
+                 correo_electronico: z.string().nullable(),
+                 nombre_completo: z.string().nullable()
+               }).nullable(),
+               usuario_creador_rel: z.object({
+                 id: z.number(),
+                 correo_electronico: z.string().nullable(),
+                 nombre_completo: z.string().nullable()
+               })
+             })),
+             es_ultima_etapa: z.boolean()
           })
         }),
         404: z.object({
@@ -706,31 +706,55 @@ export  async function etapasRoutes(app: FastifyInstance) {
         };
       }
 
-      // Obtener todos los tipos de etapa ordenados por ID para determinar la siguiente
-      const todosLosTiposEtapa = await prisma.etapas_tipo.findMany({
-        orderBy: { id: 'asc' }
+      // Obtener todas las etapas anteriores del proyecto (excluyendo la actual) ordenadas por fecha de creación
+      const etapasAnteriores = await prisma.etapas_registro.findMany({
+        where: {
+          proyecto_id,
+          activa: true,
+          id: { not: etapaActual.id } // Excluir la etapa actual
+        },
+        include: {
+          etapa_tipo: true,
+          tipo_iniciativa: true,
+          tipo_obra: true,
+          region: true,
+          provincia: true,
+          comuna: true,
+          inspector_fiscal: {
+            select: {
+              id: true,
+              correo_electronico: true,
+              nombre_completo: true
+            }
+          },
+          usuario_creador_rel: {
+            select: {
+              id: true,
+              correo_electronico: true,
+              nombre_completo: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
       });
 
-      // Encontrar el índice del tipo de etapa actual
-      const indiceActual = todosLosTiposEtapa.findIndex(tipo => tipo.id === etapaActual.etapa_tipo_id);
-      
-      // Determinar la siguiente etapa
-      let siguienteEtapa = null;
-      let esUltimaEtapa = false;
+      // Unir la etapa actual al inicio del array etapas_anteriores
+      const todasLasEtapasAnteriores = [etapaActual, ...etapasAnteriores];
 
-      if (indiceActual !== -1 && indiceActual < todosLosTiposEtapa.length - 1) {
-        // Hay una siguiente etapa
-        siguienteEtapa = todosLosTiposEtapa[indiceActual + 1];
-      } else {
-        // Es la última etapa o no se encontró
-        esUltimaEtapa = true;
-      }
+      // Determinar la siguiente etapa basándose en el último etapa_tipo_id usado + 1
+      const ultimoEtapaTipoId = Math.max(...todasLasEtapasAnteriores.map(etapa => etapa.etapa_tipo_id));
+      const siguienteEtapaTipoId = ultimoEtapaTipoId + 1;
+      // Buscar si existe el siguiente tipo de etapa
+      const siguienteEtapa = await prisma.etapas_tipo.findUnique({
+        where: { id: siguienteEtapaTipoId }
+      });
+      const esUltimaEtapa = !siguienteEtapa;
 
       return {
         success: true,
-        message: `Información de etapa actual del proyecto ${proyecto_id} y siguiente etapa obtenida exitosamente`,
+        message: `Información completa del proyecto ${proyecto_id} obtenida exitosamente`,
         data: {
-          etapa_actual: etapaActual,
+          etapas_anteriores: todasLasEtapasAnteriores,
           siguiente_etapa: siguienteEtapa,
           es_ultima_etapa: esUltimaEtapa
         }
