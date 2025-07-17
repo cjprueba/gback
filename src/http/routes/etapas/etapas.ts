@@ -710,7 +710,6 @@ export  async function etapasRoutes(app: FastifyInstance) {
       const etapasAnteriores = await prisma.etapas_registro.findMany({
         where: {
           proyecto_id,
-          activa: true,
           id: { not: etapaActual.id } // Excluir la etapa actual
         },
         include: {
