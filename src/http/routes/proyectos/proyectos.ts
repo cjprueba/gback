@@ -848,9 +848,62 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             usuario_creador: body.usuario_creador
           },
           include: {
-            etapa_tipo: true
+            etapa_tipo: {
+              select: {
+                id: true,
+                nombre: true,
+                descripcion: true,
+                color: true,
+                carpetas_iniciales: true
+              }
+            }
           }
         });
+
+        // Crear carpetas iniciales de la nueva etapa si existen
+        try {
+          console.log('Creating initial folders for new etapa:', nuevaEtapa.etapa_tipo.nombre);
+          
+          // Obtener información del proyecto para crear las carpetas
+          const proyectoInfo = await prisma.proyectos.findUnique({
+            where: { id },
+            select: {
+              nombre: true,
+              carpeta_raiz_id: true
+            }
+          });
+
+          if (proyectoInfo && nuevaEtapa.etapa_tipo.carpetas_iniciales) {
+            console.log('Etapa tipo carpetas_iniciales found:', JSON.stringify(nuevaEtapa.etapa_tipo.carpetas_iniciales, null, 2));
+            
+            // Crear la ruta base del proyecto en MinIO
+            const projectFolderPath = await MinIOUtils.createProjectFolder(proyectoInfo.nombre, id);
+            
+            // Crear carpetas en MinIO
+            await MinIOUtils.createEtapaTipoFolders(projectFolderPath, {
+              carpetas_iniciales: nuevaEtapa.etapa_tipo.carpetas_iniciales
+            } as EtapaTipoCarpetas);
+            console.log('Etapa tipo folders created successfully in MinIO for new etapa:', nuevaEtapa.etapa_tipo.nombre);
+            
+            // Crear registros en la base de datos
+            const etapaTipoFolders = await CarpetaDBUtils.createEtapaTipoFoldersDB(
+              id,
+              projectFolderPath,
+              {
+                carpetas_iniciales: nuevaEtapa.etapa_tipo.carpetas_iniciales
+              },
+              body.usuario_creador,
+              proyectoInfo.carpeta_raiz_id,
+              body.etapa_tipo_id
+            );
+            console.log(`Etapa tipo folders DB records created successfully for new etapa: ${nuevaEtapa.etapa_tipo.nombre}. Created ${etapaTipoFolders.length} folders with S3 data.`);
+          } else {
+            console.log('No carpetas_iniciales found for new etapa_tipo_id:', body.etapa_tipo_id);
+          }
+        } catch (folderError) {
+          console.error('Error creating etapa tipo folders for new etapa:', folderError);
+          // Continue with etapa change even if folder creation fails
+        }
 
         return reply.status(200).send({
           success: true,
