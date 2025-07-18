@@ -20,6 +20,6 @@ spec:
     kind: Service
     name: minio
   port:
-    targetPort: 40437
+    targetPort: 44137
   tls:
     termination: edge
