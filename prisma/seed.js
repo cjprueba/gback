@@ -240,10 +240,8 @@ async function main() {
         color: 'rgb(241, 196, 15)',
         carpetas_iniciales: {
           "Proyecto en Licitación": {
-            "Proyectos": {
               "Proyecto de Licitación": {},
               "Proyecto de Adjudicación": {}
-            }
           }
         },
         // Solo habilitar los campos específicos para Proyectos en Licitación
@@ -272,11 +270,9 @@ async function main() {
         color: 'rgb(231, 76, 60)',
         carpetas_iniciales: {
           "Coordinación Técnica": {
-            "Subcarpetas": {
-              "Coordinación Técnica": {},
+              "SIAC": {},
               "Contratos de Asesorías": {},
-              "Coordinación Técnica ": {}
-            }
+              "Otros": {}
           },
           "Departamento": {},
           "Expropiaciones": {},
@@ -306,6 +302,10 @@ async function main() {
         nombre: 'Concesiones en Operación', 
         descripcion: '-',
         color: 'rgb(46, 204, 113)',
+        carpetas_iniciales: {
+          "Proyectos OPS": {},
+          "Obras": {}
+        },
         // Solo habilitar los campos específicos para Concesiones en Operación
         tipo_iniciativa: true,
         tipo_obra: true,
@@ -330,6 +330,9 @@ async function main() {
         nombre: 'Concesiones en Operación y Construcción', 
         descripcion: '-',
         color: 'rgb(155, 89, 182)',
+        carpetas_iniciales: {
+          "Modificaciones de Contrato": {}
+        },
         // Solo habilitar los campos específicos para Concesiones en Operación y Construcción
         tipo_iniciativa: true,
         tipo_obra: true,
@@ -354,6 +357,9 @@ async function main() {
         nombre: 'Concesiones Finalizadas', 
         descripcion: '-',
         color: 'rgb(127, 140, 141)',
+        carpetas_iniciales: {
+          "Concesiones Finalizadas": {}
+        },
         // Solo habilitar los campos específicos para Concesiones Finalizadas
         tipo_iniciativa: true,
         tipo_obra: true,

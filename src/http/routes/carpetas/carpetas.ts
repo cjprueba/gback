@@ -659,6 +659,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
               carpeta_padre: z.object({
                 id: z.number(),
                 nombre: z.string()
+              }).nullable().optional(),
+              // Información del tipo de etapa
+              etapa_tipo: z.object({
+                id: z.number(),
+                nombre: z.string(),
+                color: z.string().nullable()
               }).nullable().optional()
             }),
             contenido: z.object({
@@ -671,7 +677,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 fecha_actualizacion: z.date(),
                 activa: z.boolean(),
                 total_documentos: z.number(),
-                total_carpetas_hijas: z.number()
+                total_carpetas_hijas: z.number(),
+                etapa_tipo: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  color: z.string().nullable()
+                }).nullable().optional()
               })),
               documentos: z.array(z.object({
                 id: z.string(),
@@ -739,6 +750,13 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 id: true,
                 nombre: true
               }
+            },
+            etapa_tipo: {
+              select: {
+                id: true,
+                nombre: true,
+                color: true
+              }
             }
           }
         });
@@ -772,6 +790,15 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
               carpeta_padre_id: parseInt(id),
               activa: true
             },
+            include: {
+              etapa_tipo: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  color: true
+                }
+              }
+            },
             orderBy: {
               [sort_carpetas]: sort_order
             },
@@ -780,12 +807,8 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
 
           // Calcular estadísticas para cada carpeta hija (excluyendo documentos eliminados)
           for (const carpetaHija of carpetasHijas) {
-            const totalDocs = await prisma.documentos.count({
-              where: { 
-                carpeta_id: carpetaHija.id,
-                eliminado: false
-              }
-            });
+            // Calcular total de documentos de forma recursiva para cada carpeta hija
+            const totalDocs = await calcularTotalDocumentosRecursivo(carpetaHija.id);
 
             const totalCarpetasHijas = await prisma.carpetas.count({
               where: { 
@@ -860,7 +883,10 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           }));
 
           response.contenido.documentos = documentosFormateados;
-          response.estadisticas.total_documentos = documentos.length;
+          
+          // Calcular total de documentos incluyendo carpetas hijas recursivamente
+          const totalDocumentos = await calcularTotalDocumentosRecursivo(parseInt(id));
+          response.estadisticas.total_documentos = totalDocumentos;
 
           // Calcular estadísticas de documentos
           if (documentos.length > 0) {
@@ -1293,6 +1319,39 @@ async function actualizarRutasSubcarpetas(
   } catch (error) {
     console.error('Error actualizando rutas de subcarpetas:', error);
     throw error;
+  }
+}
+
+// Función auxiliar para calcular el total de documentos de una carpeta incluyendo subcarpetas recursivamente
+async function calcularTotalDocumentosRecursivo(carpetaId: number): Promise<number> {
+  try {
+    // Contar documentos directos de esta carpeta
+    const documentosDirectos = await prisma.documentos.count({
+      where: {
+        carpeta_id: carpetaId,
+        eliminado: false
+      }
+    });
+
+    // Obtener todas las subcarpetas directas
+    const subcarpetas = await prisma.carpetas.findMany({
+      where: {
+        carpeta_padre_id: carpetaId,
+        activa: true
+      },
+      select: { id: true }
+    });
+
+    // Calcular documentos de subcarpetas recursivamente
+    let documentosSubcarpetas = 0;
+    for (const subcarpeta of subcarpetas) {
+      documentosSubcarpetas += await calcularTotalDocumentosRecursivo(subcarpeta.id);
+    }
+
+    return documentosDirectos + documentosSubcarpetas;
+  } catch (error) {
+    console.error('Error calculando total de documentos recursivo:', error);
+    return 0;
   }
 }
 
