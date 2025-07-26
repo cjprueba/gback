@@ -273,10 +273,7 @@ async function main() {
               "SIAC": {},
               "Contratos de Asesorías": {},
               "Otros": {}
-          },
-          "Departamento": {},
-          "Expropiaciones": {},
-          "Ingeniería": {}
+          }
         },
         // Solo habilitar los campos específicos para Concesiones en Construcción
         tipo_iniciativa: true,

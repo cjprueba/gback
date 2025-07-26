@@ -253,7 +253,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               etapas_registro: z.array(z.object({
                 etapa_tipo: z.object({
                   id: z.number(),
-                  nombre: z.string()
+                  nombre: z.string(),
+                  color: z.string()
                 })
               })),
               
@@ -282,7 +283,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               etapa_tipo: {
                 select: {
                   id: true,
-                  nombre: true
+                  nombre: true,
+                  color: true
                 }
               }
             }
