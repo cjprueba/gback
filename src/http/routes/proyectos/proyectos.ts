@@ -392,7 +392,6 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 }).nullable(),
                 comuna: z.object({
                   id: z.number(),
-                  codigo: z.string(),
                   nombre: z.string()
                 }).nullable(),
                 volumen: z.string().nullable(),
@@ -1067,7 +1066,6 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 }).nullable(),
                 comuna: z.object({
                   id: z.number(),
-                  codigo: z.string(),
                   nombre: z.string()
                 }).nullable(),
                 volumen: z.string().nullable(),
