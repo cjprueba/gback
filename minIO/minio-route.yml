@@ -20,6 +20,6 @@ spec:
     kind: Service
     name: minio
   port:
-    targetPort: 35571
+    targetPort: 41025
   tls:
     termination: edge

@@ -178,7 +178,7 @@ export class MinIOUtils {
   /**
    * Recursively creates nested folder structure
    */
-  private static async createNestedFolderStructure(
+  static async createNestedFolderStructure(
     basePath: string, 
     folderStructure: NestedFolderStructure
   ): Promise<void> {

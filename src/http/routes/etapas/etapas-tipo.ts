@@ -76,7 +76,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
   });
 
   // GET /etapas-tipo-obra - Lista de tipos de etapa con sus tipos de obra asociados
-  server.get('/etapas-tipo-obra', {
+  /*server.get('/etapas-tipo-obra', {
     schema: {
       tags: ['Etapas Tipo'],
       summary: 'Obtener tipos de etapa con sus tipos de obra asociados',
@@ -143,7 +143,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         : 'Lista de tipos de etapa con sus tipos de obra obtenida exitosamente',
       data: etapasTipoConObras
     };
-  });
+  });*/
 
   // POST /etapas-tipo - Crear nuevo tipo de etapa
   server.post('/etapas-tipo', {

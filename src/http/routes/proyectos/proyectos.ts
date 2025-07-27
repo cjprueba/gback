@@ -179,7 +179,6 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
         if (etapas_registro && etapas_registro.etapa_tipo_id) {
           try {
             console.log('Fetching etapa tipo folders for etapa_tipo_id:', etapas_registro.etapa_tipo_id);
-            
             const etapaTipo = await prisma.etapas_tipo.findUnique({
               where: { id: etapas_registro.etapa_tipo_id },
               select: {
@@ -189,30 +188,69 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               }
             });
 
+            // Obtener carpetas transversales asociadas a este tipo de etapa
+            const carpetasTransversales = await (prisma as any).carpetas_transversales.findMany({
+              where: {
+                etapa_tipo_id: etapas_registro.etapa_tipo_id,
+                activa: true
+              },
+              orderBy: {
+                orden: 'asc'
+              }
+            });
+
+            // Crear carpetas transversales si existen
+            if (carpetasTransversales && carpetasTransversales.length > 0) {
+              console.log(`Creating ${carpetasTransversales.length} transverse folders for etapa tipo: ${etapaTipo?.nombre}`);
+              for (const carpetaTransversal of carpetasTransversales) {
+                // Si la carpeta transversal tiene estructura_carpetas, crear las subcarpetas directamente en la raíz del proyecto
+                if (carpetaTransversal.estructura_carpetas && typeof carpetaTransversal.estructura_carpetas === 'object') {
+                  console.log(`Creating transverse subfolders for: ${carpetaTransversal.nombre}`);
+                  console.log('Estructura carpetas:', JSON.stringify(carpetaTransversal.estructura_carpetas, null, 2));
+                  
+                  try {
+                    // Crear las subcarpetas directamente en la raíz del proyecto en MinIO
+                    await MinIOUtils.createNestedFolderStructure(projectFolderPath, carpetaTransversal.estructura_carpetas);
+                    console.log(`Transverse subfolders created successfully in MinIO for: ${carpetaTransversal.nombre}`);
+                    
+                    // Crear registros en la base de datos para las subcarpetas
+                    const subcarpetas = await CarpetaDBUtils.createNestedFolderStructureDB(
+                      proyecto.id,
+                      projectFolderPath,
+                      carpetaTransversal.estructura_carpetas,
+                      datosProyecto.creado_por,
+                      carpetaRaiz?.id, // carpeta_padre_id será la carpeta raíz del proyecto
+                      etapaTipo?.id,
+                      'Carpeta transversal del proyecto', // descripción específica para carpetas transversales
+                      carpetaTransversal.id // carpeta_transversal_id para las subcarpetas
+                    );
+                    console.log(`Transverse subfolders DB records created successfully for: ${carpetaTransversal.nombre}. Created ${subcarpetas.length} subfolders.`);
+                  } catch (subfolderError) {
+                    console.error(`Error creating transverse subfolders for ${carpetaTransversal.nombre}:`, subfolderError);
+                    // Continue with other folders even if subfolder creation fails
+                  }
+                }
+              }
+              console.log(`Transverse folders created successfully for project: ${proyecto.nombre}`);
+            }
+
             if (etapaTipo && etapaTipo.carpetas_iniciales) {
               console.log('Etapa tipo found:', etapaTipo.nombre);
               console.log('Etapa tipo carpetas_iniciales:', JSON.stringify(etapaTipo.carpetas_iniciales, null, 2));
-              
               // Crear carpetas en MinIO
               await MinIOUtils.createEtapaTipoFolders(projectFolderPath, {
                 carpetas_iniciales: etapaTipo.carpetas_iniciales
               } as EtapaTipoCarpetas);
               console.log('Etapa tipo folders created successfully in MinIO for project:', proyecto.nombre);
-              
               // Crear registros en la base de datos
-              const etapaTipoFolders = await CarpetaDBUtils.createEtapaTipoFoldersDB(
+              await CarpetaDBUtils.createEtapaTipoFoldersDB(
                 proyecto.id,
                 projectFolderPath,
-                {
-                  carpetas_iniciales: etapaTipo.carpetas_iniciales
-                },
+                { carpetas_iniciales: etapaTipo.carpetas_iniciales },
                 datosProyecto.creado_por,
                 carpetaRaiz?.id,
-                etapaTipoId
+                etapaTipo.id
               );
-              console.log(`Etapa tipo folders DB records created successfully for project: ${proyecto.nombre}. Created ${etapaTipoFolders.length} folders with S3 data.`);
-            } else {
-              console.log('No carpetas_iniciales found for etapa_tipo_id:', etapas_registro.etapa_tipo_id);
             }
           } catch (etapaTipoError) {
             console.error('Error creating etapa tipo folders:', etapaTipoError);
@@ -370,10 +408,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                   id: z.number(),
                   nombre_completo: z.string().nullable(),
                   correo_electronico: z.string().nullable()
-                }).nullable(),
-                fecha_creacion: z.date(),
-                fecha_actualizacion: z.date(),
-                activa: z.boolean()
+                }).nullable()
               })),
               division: z.object({
                 id: z.number(),
@@ -787,7 +822,12 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
 
         // Verificar que el tipo de etapa existe
         const etapaTipo = await prisma.etapas_tipo.findUnique({
-          where: { id: body.etapa_tipo_id }
+          where: { id: body.etapa_tipo_id },
+          select: {
+            id: true,
+            nombre: true,
+            carpetas_iniciales: true
+          }
         });
 
         if (!etapaTipo) {
@@ -901,6 +941,55 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             console.log(`Etapa tipo folders DB records created successfully for new etapa: ${nuevaEtapa.etapa_tipo.nombre}. Created ${etapaTipoFolders.length} folders with S3 data.`);
           } else {
             console.log('No carpetas_iniciales found for new etapa_tipo_id:', body.etapa_tipo_id);
+          }
+
+          // Crear carpetas transversales para la nueva etapa si existen
+          const carpetasTransversales = await (prisma as any).carpetas_transversales.findMany({
+            where: {
+              etapa_tipo_id: body.etapa_tipo_id,
+              activa: true
+            },
+            orderBy: {
+              orden: 'asc'
+            }
+          });
+
+          if (carpetasTransversales && carpetasTransversales.length > 0) {
+            console.log(`Creating ${carpetasTransversales.length} transverse folders for new etapa: ${nuevaEtapa.etapa_tipo.nombre}`);
+            
+            // Crear la ruta base del proyecto en MinIO si no se creó antes
+            const projectFolderPath = await MinIOUtils.createProjectFolder(proyectoInfo.nombre, id);
+            
+            for (const carpetaTransversal of carpetasTransversales) {
+              // Si la carpeta transversal tiene estructura_carpetas, crear las subcarpetas directamente en la raíz del proyecto
+              if (carpetaTransversal.estructura_carpetas && typeof carpetaTransversal.estructura_carpetas === 'object') {
+                console.log(`Creating transverse subfolders for: ${carpetaTransversal.nombre}`);
+                console.log('Estructura carpetas:', JSON.stringify(carpetaTransversal.estructura_carpetas, null, 2));
+                
+                try {
+                  // Crear las subcarpetas directamente en la raíz del proyecto en MinIO
+                  await MinIOUtils.createNestedFolderStructure(projectFolderPath, carpetaTransversal.estructura_carpetas);
+                  console.log(`Transverse subfolders created successfully in MinIO for: ${carpetaTransversal.nombre}`);
+                  
+                  // Crear registros en la base de datos para las subcarpetas
+                  const subcarpetas = await CarpetaDBUtils.createNestedFolderStructureDB(
+                    id,
+                    projectFolderPath,
+                    carpetaTransversal.estructura_carpetas,
+                    body.usuario_creador,
+                    proyectoInfo.carpeta_raiz_id, // carpeta_padre_id será la carpeta raíz del proyecto
+                    body.etapa_tipo_id,
+                    'Carpeta transversal del proyecto', // descripción específica para carpetas transversales
+                    carpetaTransversal.id // carpeta_transversal_id para las subcarpetas
+                  );
+                  console.log(`Transverse subfolders DB records created successfully for: ${carpetaTransversal.nombre}. Created ${subcarpetas.length} subfolders.`);
+                } catch (subfolderError) {
+                  console.error(`Error creating transverse subfolders for ${carpetaTransversal.nombre}:`, subfolderError);
+                  // Continue with other folders even if subfolder creation fails
+                }
+              }
+            }
+            console.log(`Transverse folders created successfully for new etapa: ${nuevaEtapa.etapa_tipo.nombre}`);
           }
         } catch (folderError) {
           console.error('Error creating etapa tipo folders for new etapa:', folderError);

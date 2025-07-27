@@ -148,8 +148,8 @@ model etapas_tipo {
 
   // Relaciones inversas
   etapas_registro etapas_registro[]
-  etapas_tipo_obras etapas_tipo_obras[]
   carpetas carpetas[]
+  carpetas_transversales carpetas_transversales[]
 }
 
 model tipos_iniciativas {
@@ -166,17 +166,6 @@ model tipos_obras {
   
   // Relaciones inversas
   etapas_registro etapas_registro[]
-  etapas_tipo_obras etapas_tipo_obras[]
-}
-
-model etapas_tipo_obras {
-  id            Int       @id @default(autoincrement())
-  etapa_tipo_id Int
-  tipo_obra_id  Int
-  
-  // Relaciones
-  etapa_tipo etapas_tipo @relation(fields: [etapa_tipo_id], references: [id])
-  tipo_obra tipos_obras  @relation(fields: [tipo_obra_id], references: [id])
 }
 
 model regiones {
@@ -489,6 +478,7 @@ model carpetas {
   
   proyecto_id                 Int?
   etapa_tipo_id               Int?
+  carpeta_transversal_id      Int?
   
   // Información de S3
   s3_path                     String   @db.VarChar(500)
@@ -512,6 +502,7 @@ model carpetas {
   carpeta_padre   carpetas?     @relation("CarpetaHijos", fields: [carpeta_padre_id], references: [id])
   proyecto        proyectos?    @relation(fields: [proyecto_id], references: [id])
   etapa_tipo      etapas_tipo?  @relation(fields: [etapa_tipo_id], references: [id])
+  carpeta_transversal carpetas_transversales? @relation(fields: [carpeta_transversal_id], references: [id])
   creador         usuarios      @relation(fields: [usuario_creador], references: [id])
 
   // Relaciones inversas
@@ -626,4 +617,19 @@ model tipos_documentos {
 
   // Relaciones inversas
   documentos documentos[]
+}
+
+model carpetas_transversales {
+  id                    Int         @id @default(autoincrement())
+  nombre                String      @db.VarChar(255)
+  descripcion           String?
+  color                 String      @db.VarChar(20)
+  orden                 Int?
+  activa                Boolean     @default(true)
+  etapa_tipo_id         Int?
+  estructura_carpetas   Json?       @default("{}")
+  etapa_tipo            etapas_tipo? @relation(fields: [etapa_tipo_id], references: [id])
+  
+  // Relaciones inversas
+  carpetas carpetas[]
 }

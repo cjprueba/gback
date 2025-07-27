@@ -558,6 +558,8 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
       }
     })
 
+
+
     .get('/carpetas/:id', {
       schema: {
         tags: ['Carpetas'],
@@ -665,6 +667,13 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 id: z.number(),
                 nombre: z.string(),
                 color: z.string().nullable()
+              }).nullable().optional(),
+              carpeta_transversal: z.object({
+                id: z.number(),
+                nombre: z.string(),
+                descripcion: z.string().nullable(),
+                color: z.string(),
+                orden: z.number().nullable()
               }).nullable().optional()
             }),
             contenido: z.object({
@@ -681,7 +690,14 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 etapa_tipo: z.object({
                   id: z.number(),
                   nombre: z.string(),
-                  color: z.string().nullable()
+                  color: z.string().nullable(),
+                }).nullable().optional(),
+                carpeta_transversal: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable(),
+                  color: z.string(),
+                  orden: z.number().nullable()
                 }).nullable().optional()
               })),
               documentos: z.array(z.object({
@@ -757,9 +773,22 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 nombre: true,
                 color: true
               }
+            },
+            carpeta_transversal: {
+              select: {
+                id: true,
+                nombre: true,
+                descripcion: true,
+                color: true,
+                orden: true
+              }
             }
           }
         });
+
+
+
+
 
         if (!carpeta) {
           return reply.status(404).send({
@@ -797,6 +826,15 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                   nombre: true,
                   color: true
                 }
+              },
+              carpeta_transversal: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  descripcion: true,
+                  color: true,
+                  orden: true
+                }
               }
             },
             orderBy: {
@@ -817,9 +855,13 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
               }
             });
 
+
+
             (carpetaHija as any).total_documentos = totalDocs;
             (carpetaHija as any).total_carpetas_hijas = totalCarpetasHijas;
           }
+
+
 
           response.contenido.carpetas = carpetasHijas;
           response.estadisticas.total_carpetas = carpetasHijas.length;

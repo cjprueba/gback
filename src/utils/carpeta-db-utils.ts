@@ -6,6 +6,7 @@ export interface CarpetaDBData {
   carpeta_padre_id?: number;
   proyecto_id?: number;
   etapa_tipo_id?: number;
+  carpeta_transversal_id?: number;
   concesion_id?: number;
   s3_path: string;
   s3_bucket_name?: string;
@@ -54,6 +55,7 @@ export class CarpetaDBUtils {
           carpeta_padre_id: carpetaData.carpeta_padre_id,
           proyecto_id: carpetaData.proyecto_id,
           etapa_tipo_id: carpetaData.etapa_tipo_id,
+          carpeta_transversal_id: carpetaData.carpeta_transversal_id,
           concesion_id: carpetaData.concesion_id,
           s3_path: carpetaData.s3_path,
           s3_bucket_name: carpetaData.s3_bucket_name || process.env.MINIO_BUCKET,
@@ -305,14 +307,15 @@ export class CarpetaDBUtils {
   /**
    * Recursively creates nested folder structure database records
    */
-  private static async createNestedFolderStructureDB(
+  static async createNestedFolderStructureDB(
     projectId: number,
     basePath: string,
     folderStructure: NestedFolderStructure,
     usuarioCreador: number,
     carpetaPadreId?: number,
     etapaTipoId?: number,
-    descripcion?: string
+    descripcion?: string,
+    carpetaTransversalId?: number
   ): Promise<any[]> {
     const carpetasCreadas = [];
     let orden = 1;
@@ -327,6 +330,7 @@ export class CarpetaDBUtils {
         proyecto_id: projectId,
         carpeta_padre_id: carpetaPadreId,
         etapa_tipo_id: etapaTipoId,
+        carpeta_transversal_id: carpetaTransversalId,
         s3_path: folderPath,
         usuario_creador: usuarioCreador,
         orden_visualizacion: orden++
@@ -343,7 +347,8 @@ export class CarpetaDBUtils {
           usuarioCreador,
           carpeta.id,
           etapaTipoId,
-          descripcion // Pass the same description to subfolders
+          descripcion, // Pass the same description to subfolders
+          carpetaTransversalId // Pass the same carpeta_transversal_id to subfolders
         );
         carpetasCreadas.push(...subCarpetas);
       }

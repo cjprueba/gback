@@ -2,6 +2,7 @@
 // npx prisma db seed
 
 import { PrismaClient } from '@prisma/client'
+import { comunasChile } from '../scripts/comunas-chile-completas.js';
 
 const prisma = new PrismaClient()
 
@@ -10,10 +11,24 @@ async function main() {
   
   // Eliminar datos en orden inverso a las dependencias
   // (primero las tablas que dependen de otras)
+  await prisma.alertas.deleteMany({})
+  await prisma.archivo_historial.deleteMany({})
+  await prisma.auditorias.deleteMany({})
+  await prisma.carpetas_auditoria.deleteMany({})
+  await prisma.registro_documental.deleteMany({})
+  await prisma.documentos.deleteMany({})
+  await prisma.carpetas.deleteMany({})
+  await prisma.carpetas_transversales.deleteMany({})
+  await prisma.etapas_registro.deleteMany({})
+  await prisma.inspector_fiscal.deleteMany({})
+  await prisma.fechas_clave.deleteMany({})
+  await prisma.externos_involucrados.deleteMany({})
+  await prisma.obras_concesionadas.deleteMany({})
+  await prisma.concesiones.deleteMany({})
+  await prisma.proyectos.deleteMany({})
   await prisma.comunas.deleteMany({})
   await prisma.provincias.deleteMany({})
   await prisma.usuarios.deleteMany({})
-  await prisma.etapas_tipo_obras.deleteMany({})
   await prisma.etapas_tipo.deleteMany({})
   await prisma.regiones.deleteMany({})
   await prisma.tipos_obras.deleteMany({})
@@ -206,13 +221,7 @@ async function main() {
         descripcion: 'Etapa de inicio de proyecto',
         color: 'rgb(52, 152, 219)',
         carpetas_iniciales: {
-          "Desarrollo de Proyectos": {},
-          "División Participación Medio Ambiente y Territorio": {},
-          "Jurídica": {},
-          "Ingeniería": {},
-          "División de Administración y Finanzas": {},
-          "División de Estudios y Análisis Financiero": {},
-          "Expropiaciones": {}
+          "Desarrollo de Proyectos": {}
         },
         // Solo habilitar los campos específicos para Cartera de proyectos
         tipo_iniciativa: true,
@@ -226,7 +235,7 @@ async function main() {
         plazo_total_concesion: true,
         // Deshabilitar todos los demás campos
         valor_referencia: false,
-        bip: false,
+        bip: true,
         fecha_recepcion_ofertas_tecnicas: false,
         fecha_apertura_ofertas_economicas: false,
         fecha_inicio_concesion: false,
@@ -380,119 +389,36 @@ async function main() {
     ]
   })
 
+  // Crear etapas tipo básicas
+  const etapasTipoCartera = await prisma.etapas_tipo.findFirst({ where: { nombre: 'Cartera de proyectos' } });
 
-  const etapas_tipo_obra = await prisma.etapas_tipo_obras.createMany({
-    data: [
-      { 
-        etapa_tipo_id: 1, 
-        tipo_obra_id: 9,
-      },
-      { 
-        etapa_tipo_id: 1, 
-        tipo_obra_id: 10,
-      },
-      { 
-        etapa_tipo_id: 1, 
-        tipo_obra_id: 11,
-      },
-      { 
-        etapa_tipo_id: 2, 
-        tipo_obra_id: 8,
-      },
-      { 
-        etapa_tipo_id: 2, 
-        tipo_obra_id: 9,
-      },
-      { 
-        etapa_tipo_id: 2, 
-        tipo_obra_id: 10,
-      },
-      { 
-        etapa_tipo_id: 2, 
-        tipo_obra_id: 11,
-      },
-      // Concesiones en Operación
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 1,
-      },
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 2,
-      },
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 3,
-      },
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 4,
-      },
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 5,
-      },
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 6,
-      },
-      { 
-        etapa_tipo_id: 3, 
-        tipo_obra_id: 7,
-      },
-      // Conseciones en Construcción
-      {
-        etapa_tipo_id: 4,
-        tipo_obra_id: 1,
-      },
-      {
-        etapa_tipo_id: 4,
-        tipo_obra_id: 2,
-      },
-      {
-        etapa_tipo_id: 4,
-        tipo_obra_id: 3,
-      },
-      {
-        etapa_tipo_id: 4,
-        tipo_obra_id: 5,
-      },
-      {
-        etapa_tipo_id: 4,
-        tipo_obra_id: 6,
-      },
-      // Concesiones en Operación y Construcción
-      {
-        etapa_tipo_id: 5,
-        tipo_obra_id: 1,
-      },
-      {
-        etapa_tipo_id: 5,
-        tipo_obra_id: 4,
-      },
-      // Concesiones Finalizadas
-      {
-        etapa_tipo_id: 6,
-        tipo_obra_id: 1,
-      },
-      {
-        etapa_tipo_id: 6,
-        tipo_obra_id: 2,
-      },
-      {
-        etapa_tipo_id: 6,
-        tipo_obra_id: 3,
-      },
-      {
-        etapa_tipo_id: 6,
-        tipo_obra_id: 4,
-      },
-      {
-        etapa_tipo_id: 6,
-        tipo_obra_id: 6,
+  // Crear carpetas transversales asociadas a la etapa 'Cartera de proyectos'
+  if (etapasTipoCartera) {
+    await prisma.carpetas_transversales.create({
+      data: {
+        nombre: 'Estructura Completa de Documentos',
+        descripcion: 'Estructura transversal completa para todos los documentos del proyecto',
+        color: 'rgb(52, 152, 219)',
+        orden: 1,
+        activa: true,
+        etapa_tipo_id: etapasTipoCartera.id,
+        estructura_carpetas: {
+          "División de Estudios y Análisis Financiero": {},
+          "División Participación, Medio Ambiente y Territorio": {},
+          "Ingeniería": {},
+          "División de Administración y Finanzas": {},
+          "Jurídica": {},
+          "Expropiaciones": {
+            "Planos de Expropiaciones": {},
+            "Informes de Tasación": {},
+            "Fichas lotes": {},
+            "Correspondencia": {}
+          }
+        }
       }
-    ]
-  })
+    });
+  }
+
 
   // Crear usuario administrador por defecto
   const adminPerfil = await prisma.perfiles.findFirst({
@@ -600,157 +526,9 @@ async function main() {
     ]
   })
 
-  // Crear comunas de Chile (datos oficiales - principales ciudades)
+  // Crear comunas de Chile (datos oficiales completos)
   const comunas = await prisma.comunas.createMany({
-    data: [
-      // Región de Arica y Parinacota (XV)
-      { codigo: '01101', nombre: 'Arica', provincia_id: 1, region_id: 1 },
-      { codigo: '01107', nombre: 'Camarones', provincia_id: 1, region_id: 1 },
-      { codigo: '01401', nombre: 'Putre', provincia_id: 2, region_id: 1 },
-      { codigo: '01402', nombre: 'General Lagos', provincia_id: 2, region_id: 1 },
-      
-      // Región de Tarapacá (I)
-      { codigo: '02101', nombre: 'Iquique', provincia_id: 3, region_id: 2 },
-      { codigo: '02102', nombre: 'Alto Hospicio', provincia_id: 3, region_id: 2 },
-      { codigo: '02201', nombre: 'Pozo Almonte', provincia_id: 4, region_id: 2 },
-      { codigo: '02202', nombre: 'Camiña', provincia_id: 4, region_id: 2 },
-      { codigo: '02203', nombre: 'Colchane', provincia_id: 4, region_id: 2 },
-      { codigo: '02204', nombre: 'Huara', provincia_id: 4, region_id: 2 },
-      { codigo: '02205', nombre: 'Pica', provincia_id: 4, region_id: 2 },
-      
-      // Región de Antofagasta (II)
-      { codigo: '03101', nombre: 'Antofagasta', provincia_id: 5, region_id: 3 },
-      { codigo: '03102', nombre: 'Mejillones', provincia_id: 5, region_id: 3 },
-      { codigo: '03103', nombre: 'Sierra Gorda', provincia_id: 5, region_id: 3 },
-      { codigo: '03104', nombre: 'Taltal', provincia_id: 5, region_id: 3 },
-      { codigo: '03201', nombre: 'Calama', provincia_id: 6, region_id: 3 },
-      { codigo: '03202', nombre: 'Ollagüe', provincia_id: 6, region_id: 3 },
-      { codigo: '03203', nombre: 'San Pedro de Atacama', provincia_id: 6, region_id: 3 },
-      { codigo: '03301', nombre: 'Tocopilla', provincia_id: 7, region_id: 3 },
-      { codigo: '03302', nombre: 'María Elena', provincia_id: 7, region_id: 3 },
-      
-      // Región de Atacama (III)
-      { codigo: '04101', nombre: 'Copiapó', provincia_id: 8, region_id: 4 },
-      { codigo: '04102', nombre: 'Caldera', provincia_id: 8, region_id: 4 },
-      { codigo: '04103', nombre: 'Tierra Amarilla', provincia_id: 8, region_id: 4 },
-      { codigo: '04201', nombre: 'Chañaral', provincia_id: 9, region_id: 4 },
-      { codigo: '04202', nombre: 'Diego de Almagro', provincia_id: 9, region_id: 4 },
-      { codigo: '04301', nombre: 'Vallenar', provincia_id: 10, region_id: 4 },
-      { codigo: '04302', nombre: 'Alto del Carmen', provincia_id: 10, region_id: 4 },
-      { codigo: '04303', nombre: 'Freirina', provincia_id: 10, region_id: 4 },
-      { codigo: '04304', nombre: 'Huasco', provincia_id: 10, region_id: 4 },
-      
-      // Región de Coquimbo (IV)
-      { codigo: '05101', nombre: 'La Serena', provincia_id: 11, region_id: 5 },
-      { codigo: '05102', nombre: 'Coquimbo', provincia_id: 11, region_id: 5 },
-      { codigo: '05103', nombre: 'Andacollo', provincia_id: 11, region_id: 5 },
-      { codigo: '05104', nombre: 'La Higuera', provincia_id: 11, region_id: 5 },
-      { codigo: '05105', nombre: 'Paiguano', provincia_id: 11, region_id: 5 },
-      { codigo: '05106', nombre: 'Vicuña', provincia_id: 11, region_id: 5 },
-      { codigo: '05201', nombre: 'Illapel', provincia_id: 12, region_id: 5 },
-      { codigo: '05202', nombre: 'Canela', provincia_id: 12, region_id: 5 },
-      { codigo: '05203', nombre: 'Los Vilos', provincia_id: 12, region_id: 5 },
-      { codigo: '05204', nombre: 'Salamanca', provincia_id: 12, region_id: 5 },
-      { codigo: '05301', nombre: 'Ovalle', provincia_id: 13, region_id: 5 },
-      { codigo: '05302', nombre: 'Combarbalá', provincia_id: 13, region_id: 5 },
-      { codigo: '05303', nombre: 'Monte Patria', provincia_id: 13, region_id: 5 },
-      { codigo: '05304', nombre: 'Punitaqui', provincia_id: 13, region_id: 5 },
-      { codigo: '05305', nombre: 'Río Hurtado', provincia_id: 13, region_id: 5 },
-      
-      // Región de Valparaíso (V)
-      { codigo: '06101', nombre: 'Valparaíso', provincia_id: 14, region_id: 6 },
-      { codigo: '06102', nombre: 'Casablanca', provincia_id: 14, region_id: 6 },
-      { codigo: '06103', nombre: 'Concón', provincia_id: 14, region_id: 6 },
-      { codigo: '06104', nombre: 'Juan Fernández', provincia_id: 14, region_id: 6 },
-      { codigo: '06105', nombre: 'Puchuncaví', provincia_id: 14, region_id: 6 },
-      { codigo: '06107', nombre: 'Quintero', provincia_id: 14, region_id: 6 },
-      { codigo: '06109', nombre: 'Viña del Mar', provincia_id: 14, region_id: 6 },
-      { codigo: '06201', nombre: 'Isla de Pascua', provincia_id: 15, region_id: 6 },
-      { codigo: '06301', nombre: 'Los Andes', provincia_id: 16, region_id: 6 },
-      { codigo: '06302', nombre: 'Calle Larga', provincia_id: 16, region_id: 6 },
-      { codigo: '06303', nombre: 'Rinconada', provincia_id: 16, region_id: 6 },
-      { codigo: '06304', nombre: 'San Esteban', provincia_id: 16, region_id: 6 },
-      { codigo: '06401', nombre: 'La Ligua', provincia_id: 17, region_id: 6 },
-      { codigo: '06402', nombre: 'Cabildo', provincia_id: 17, region_id: 6 },
-      { codigo: '06403', nombre: 'Papudo', provincia_id: 17, region_id: 6 },
-      { codigo: '06404', nombre: 'Petorca', provincia_id: 17, region_id: 6 },
-      { codigo: '06405', nombre: 'Zapallar', provincia_id: 17, region_id: 6 },
-      { codigo: '06501', nombre: 'Quillota', provincia_id: 18, region_id: 6 },
-      { codigo: '06502', nombre: 'Calera', provincia_id: 18, region_id: 6 },
-      { codigo: '06503', nombre: 'Hijuelas', provincia_id: 18, region_id: 6 },
-      { codigo: '06504', nombre: 'La Cruz', provincia_id: 18, region_id: 6 },
-      { codigo: '06506', nombre: 'Nogales', provincia_id: 18, region_id: 6 },
-      { codigo: '06601', nombre: 'San Antonio', provincia_id: 19, region_id: 6 },
-      { codigo: '06602', nombre: 'Algarrobo', provincia_id: 19, region_id: 6 },
-      { codigo: '06603', nombre: 'Cartagena', provincia_id: 19, region_id: 6 },
-      { codigo: '06604', nombre: 'El Quisco', provincia_id: 19, region_id: 6 },
-      { codigo: '06605', nombre: 'El Tabo', provincia_id: 19, region_id: 6 },
-      { codigo: '06606', nombre: 'Santo Domingo', provincia_id: 19, region_id: 6 },
-      { codigo: '06701', nombre: 'San Felipe', provincia_id: 20, region_id: 6 },
-      { codigo: '06702', nombre: 'Catemu', provincia_id: 20, region_id: 6 },
-      { codigo: '06703', nombre: 'Llaillay', provincia_id: 20, region_id: 6 },
-      { codigo: '06704', nombre: 'Panquehue', provincia_id: 20, region_id: 6 },
-      { codigo: '06705', nombre: 'Putaendo', provincia_id: 20, region_id: 6 },
-      { codigo: '06706', nombre: 'Santa María', provincia_id: 20, region_id: 6 },
-      { codigo: '06801', nombre: 'Quilpué', provincia_id: 21, region_id: 6 },
-      { codigo: '06802', nombre: 'Limache', provincia_id: 21, region_id: 6 },
-      { codigo: '06803', nombre: 'Olmué', provincia_id: 21, region_id: 6 },
-      { codigo: '06804', nombre: 'Villa Alemana', provincia_id: 21, region_id: 6 },
-      
-      // Región Metropolitana de Santiago (RM)
-      { codigo: '13101', nombre: 'Santiago', provincia_id: 22, region_id: 7 },
-      { codigo: '13102', nombre: 'Cerrillos', provincia_id: 22, region_id: 7 },
-      { codigo: '13103', nombre: 'Cerro Navia', provincia_id: 22, region_id: 7 },
-      { codigo: '13104', nombre: 'Conchalí', provincia_id: 22, region_id: 7 },
-      { codigo: '13105', nombre: 'El Bosque', provincia_id: 22, region_id: 7 },
-      { codigo: '13106', nombre: 'Estación Central', provincia_id: 22, region_id: 7 },
-      { codigo: '13107', nombre: 'Huechuraba', provincia_id: 22, region_id: 7 },
-      { codigo: '13108', nombre: 'Independencia', provincia_id: 22, region_id: 7 },
-      { codigo: '13109', nombre: 'La Cisterna', provincia_id: 22, region_id: 7 },
-      { codigo: '13110', nombre: 'La Florida', provincia_id: 22, region_id: 7 },
-      { codigo: '13111', nombre: 'La Granja', provincia_id: 22, region_id: 7 },
-      { codigo: '13112', nombre: 'La Pintana', provincia_id: 22, region_id: 7 },
-      { codigo: '13113', nombre: 'La Reina', provincia_id: 22, region_id: 7 },
-      { codigo: '13114', nombre: 'Las Condes', provincia_id: 22, region_id: 7 },
-      { codigo: '13115', nombre: 'Lo Barnechea', provincia_id: 22, region_id: 7 },
-      { codigo: '13116', nombre: 'Lo Espejo', provincia_id: 22, region_id: 7 },
-      { codigo: '13117', nombre: 'Lo Prado', provincia_id: 22, region_id: 7 },
-      { codigo: '13118', nombre: 'Macul', provincia_id: 22, region_id: 7 },
-      { codigo: '13119', nombre: 'Maipú', provincia_id: 22, region_id: 7 },
-      { codigo: '13120', nombre: 'Ñuñoa', provincia_id: 22, region_id: 7 },
-      { codigo: '13121', nombre: 'Pedro Aguirre Cerda', provincia_id: 22, region_id: 7 },
-      { codigo: '13122', nombre: 'Peñalolén', provincia_id: 22, region_id: 7 },
-      { codigo: '13123', nombre: 'Providencia', provincia_id: 22, region_id: 7 },
-      { codigo: '13124', nombre: 'Pudahuel', provincia_id: 22, region_id: 7 },
-      { codigo: '13125', nombre: 'Quilicura', provincia_id: 22, region_id: 7 },
-      { codigo: '13126', nombre: 'Quinta Normal', provincia_id: 22, region_id: 7 },
-      { codigo: '13127', nombre: 'Recoleta', provincia_id: 22, region_id: 7 },
-      { codigo: '13128', nombre: 'Renca', provincia_id: 22, region_id: 7 },
-      { codigo: '13129', nombre: 'San Joaquín', provincia_id: 22, region_id: 7 },
-      { codigo: '13130', nombre: 'San Miguel', provincia_id: 22, region_id: 7 },
-      { codigo: '13131', nombre: 'San Ramón', provincia_id: 22, region_id: 7 },
-      { codigo: '13132', nombre: 'Vitacura', provincia_id: 22, region_id: 7 },
-      { codigo: '13201', nombre: 'Puente Alto', provincia_id: 23, region_id: 7 },
-      { codigo: '13202', nombre: 'Pirque', provincia_id: 23, region_id: 7 },
-      { codigo: '13203', nombre: 'San José de Maipo', provincia_id: 23, region_id: 7 },
-      { codigo: '13301', nombre: 'Colina', provincia_id: 24, region_id: 7 },
-      { codigo: '13302', nombre: 'Lampa', provincia_id: 24, region_id: 7 },
-      { codigo: '13303', nombre: 'Tiltil', provincia_id: 24, region_id: 7 },
-      { codigo: '13401', nombre: 'San Bernardo', provincia_id: 25, region_id: 7 },
-      { codigo: '13402', nombre: 'Buin', provincia_id: 25, region_id: 7 },
-      { codigo: '13403', nombre: 'Calera de Tango', provincia_id: 25, region_id: 7 },
-      { codigo: '13404', nombre: 'Paine', provincia_id: 25, region_id: 7 },
-      { codigo: '13501', nombre: 'Melipilla', provincia_id: 26, region_id: 7 },
-      { codigo: '13502', nombre: 'Alhué', provincia_id: 26, region_id: 7 },
-      { codigo: '13503', nombre: 'Curacaví', provincia_id: 26, region_id: 7 },
-      { codigo: '13504', nombre: 'María Pinto', provincia_id: 26, region_id: 7 },
-      { codigo: '13505', nombre: 'San Pedro', provincia_id: 26, region_id: 7 },
-      { codigo: '13601', nombre: 'Talagante', provincia_id: 27, region_id: 7 },
-      { codigo: '13602', nombre: 'El Monte', provincia_id: 27, region_id: 7 },
-      { codigo: '13603', nombre: 'Isla de Maipo', provincia_id: 27, region_id: 7 },
-      { codigo: '13604', nombre: 'Padre Hurtado', provincia_id: 27, region_id: 7 },
-      { codigo: '13605', nombre: 'Peñaflor', provincia_id: 27, region_id: 7 }
-    ]
+    data: comunasChile
   })
 
   // Crear tipos de documentos
