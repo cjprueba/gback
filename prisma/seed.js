@@ -2,7 +2,7 @@
 // npx prisma db seed
 
 import { PrismaClient } from '@prisma/client'
-import { comunasChile } from '../scripts/comunas-chile-completas.js';
+import { comunasChile } from '../scripts/comunas-chile.js';
 
 const prisma = new PrismaClient()
 
@@ -441,88 +441,88 @@ async function main() {
   const provincias = await prisma.provincias.createMany({
     data: [
       // Región de Arica y Parinacota (XV)
-      { codigo: '011', nombre: 'Arica', region_id: 1 },
-      { codigo: '014', nombre: 'Parinacota', region_id: 1 },
+      { codigo: 'P011', nombre: 'Arica', region_id: 1 },
+      { codigo: 'P014', nombre: 'Parinacota', region_id: 1 },
       
       // Región de Tarapacá (I)
-      { codigo: '021', nombre: 'Iquique', region_id: 2 },
-      { codigo: '022', nombre: 'Tamarugal', region_id: 2 },
+      { codigo: 'P021', nombre: 'Iquique', region_id: 2 },
+      { codigo: 'P022', nombre: 'Tamarugal', region_id: 2 },
       
       // Región de Antofagasta (II)
-      { codigo: '031', nombre: 'Antofagasta', region_id: 3 },
-      { codigo: '032', nombre: 'El Loa', region_id: 3 },
-      { codigo: '033', nombre: 'Tocopilla', region_id: 3 },
+      { codigo: 'P031', nombre: 'Antofagasta', region_id: 3 },
+      { codigo: 'P032', nombre: 'El Loa', region_id: 3 },
+      { codigo: 'P033', nombre: 'Tocopilla', region_id: 3 },
       
       // Región de Atacama (III)
-      { codigo: '041', nombre: 'Copiapó', region_id: 4 },
-      { codigo: '042', nombre: 'Chañaral', region_id: 4 },
-      { codigo: '043', nombre: 'Huasco', region_id: 4 },
+      { codigo: 'P041', nombre: 'Copiapó', region_id: 4 },
+      { codigo: 'P042', nombre: 'Chañaral', region_id: 4 },
+      { codigo: 'P043', nombre: 'Huasco', region_id: 4 },
       
       // Región de Coquimbo (IV)
-      { codigo: '051', nombre: 'Elqui', region_id: 5 },
-      { codigo: '052', nombre: 'Choapa', region_id: 5 },
-      { codigo: '053', nombre: 'Limarí', region_id: 5 },
+      { codigo: 'P051', nombre: 'Elqui', region_id: 5 },
+      { codigo: 'P052', nombre: 'Choapa', region_id: 5 },
+      { codigo: 'P053', nombre: 'Limarí', region_id: 5 },
       
       // Región de Valparaíso (V)
-      { codigo: '061', nombre: 'Valparaíso', region_id: 6 },
-      { codigo: '062', nombre: 'Isla de Pascua', region_id: 6 },
-      { codigo: '063', nombre: 'Los Andes', region_id: 6 },
-      { codigo: '064', nombre: 'Petorca', region_id: 6 },
-      { codigo: '065', nombre: 'Quillota', region_id: 6 },
-      { codigo: '066', nombre: 'San Antonio', region_id: 6 },
-      { codigo: '067', nombre: 'San Felipe de Aconcagua', region_id: 6 },
-      { codigo: '068', nombre: 'Marga Marga', region_id: 6 },
+      { codigo: 'P061', nombre: 'Valparaíso', region_id: 6 },
+      { codigo: 'P062', nombre: 'Isla de Pascua', region_id: 6 },
+      { codigo: 'P063', nombre: 'Los Andes', region_id: 6 },
+      { codigo: 'P064', nombre: 'Petorca', region_id: 6 },
+      { codigo: 'P065', nombre: 'Quillota', region_id: 6 },
+      { codigo: 'P066', nombre: 'San Antonio', region_id: 6 },
+      { codigo: 'P067', nombre: 'San Felipe de Aconcagua', region_id: 6 },
+      { codigo: 'P068', nombre: 'Marga Marga', region_id: 6 },
       
       // Región Metropolitana de Santiago (RM)
-      { codigo: '131', nombre: 'Santiago', region_id: 7 },
-      { codigo: '132', nombre: 'Cordillera', region_id: 7 },
-      { codigo: '133', nombre: 'Chacabuco', region_id: 7 },
-      { codigo: '134', nombre: 'Maipo', region_id: 7 },
-      { codigo: '135', nombre: 'Melipilla', region_id: 7 },
-      { codigo: '136', nombre: 'Talagante', region_id: 7 },
+      { codigo: 'P131', nombre: 'Santiago', region_id: 7 },
+      { codigo: 'P132', nombre: 'Cordillera', region_id: 7 },
+      { codigo: 'P133', nombre: 'Chacabuco', region_id: 7 },
+      { codigo: 'P134', nombre: 'Maipo', region_id: 7 },
+      { codigo: 'P135', nombre: 'Melipilla', region_id: 7 },
+      { codigo: 'P136', nombre: 'Talagante', region_id: 7 },
       
       // Región del Libertador General Bernardo O'Higgins (VI)
-      { codigo: '081', nombre: 'Cachapoal', region_id: 8 },
-      { codigo: '082', nombre: 'Colchagua', region_id: 8 },
-      { codigo: '083', nombre: 'Cardenal Caro', region_id: 8 },
+      { codigo: 'P081', nombre: 'Cachapoal', region_id: 8 },
+      { codigo: 'P082', nombre: 'Colchagua', region_id: 8 },
+      { codigo: 'P083', nombre: 'Cardenal Caro', region_id: 8 },
       
       // Región del Maule (VII)
-      { codigo: '091', nombre: 'Curicó', region_id: 9 },
-      { codigo: '092', nombre: 'Talca', region_id: 9 },
-      { codigo: '093', nombre: 'Linares', region_id: 9 },
-      { codigo: '094', nombre: 'Cauquenes', region_id: 9 },
+      { codigo: 'P091', nombre: 'Curicó', region_id: 9 },
+      { codigo: 'P092', nombre: 'Talca', region_id: 9 },
+      { codigo: 'P093', nombre: 'Linares', region_id: 9 },
+      { codigo: 'P094', nombre: 'Cauquenes', region_id: 9 },
       
       // Región del Biobío (VIII)
-      { codigo: '101', nombre: 'Concepción', region_id: 10 },
-      { codigo: '102', nombre: 'Ñuble', region_id: 10 },
-      { codigo: '103', nombre: 'Biobío', region_id: 10 },
-      { codigo: '104', nombre: 'Arauco', region_id: 10 },
+      { codigo: 'P101', nombre: 'Concepción', region_id: 10 },
+      { codigo: 'P102', nombre: 'Ñuble', region_id: 10 },
+      { codigo: 'P103', nombre: 'Biobío', region_id: 10 },
+      { codigo: 'P104', nombre: 'Arauco', region_id: 10 },
       
       // Región de la Araucanía (IX)
-      { codigo: '111', nombre: 'Cautín', region_id: 11 },
-      { codigo: '112', nombre: 'Malleco', region_id: 11 },
+      { codigo: 'P111', nombre: 'Cautín', region_id: 11 },
+      { codigo: 'P112', nombre: 'Malleco', region_id: 11 },
       
       // Región de Los Ríos (XIV)
-      { codigo: '121', nombre: 'Valdivia', region_id: 12 },
-      { codigo: '122', nombre: 'Ranco', region_id: 12 },
+      { codigo: 'P121', nombre: 'Valdivia', region_id: 12 },
+      { codigo: 'P122', nombre: 'Ranco', region_id: 12 },
       
       // Región de Los Lagos (X)
-      { codigo: '105', nombre: 'Llanquihue', region_id: 13 },
-      { codigo: '106', nombre: 'Chiloé', region_id: 13 },
-      { codigo: '107', nombre: 'Osorno', region_id: 13 },
-      { codigo: '108', nombre: 'Palena', region_id: 13 },
+      { codigo: 'P105', nombre: 'Llanquihue', region_id: 13 },
+      { codigo: 'P106', nombre: 'Chiloé', region_id: 13 },
+      { codigo: 'P107', nombre: 'Osorno', region_id: 13 },
+      { codigo: 'P108', nombre: 'Palena', region_id: 13 },
       
       // Región de Aysén del General Carlos Ibáñez del Campo (XI)
-      { codigo: '141', nombre: 'Coyhaique', region_id: 14 },
-      { codigo: '142', nombre: 'Aysén', region_id: 14 },
-      { codigo: '143', nombre: 'General Carrera', region_id: 14 },
-      { codigo: '144', nombre: 'Capitán Prat', region_id: 14 },
+      { codigo: 'P141', nombre: 'Coyhaique', region_id: 14 },
+      { codigo: 'P142', nombre: 'Aysén', region_id: 14 },
+      { codigo: 'P143', nombre: 'General Carrera', region_id: 14 },
+      { codigo: 'P144', nombre: 'Capitán Prat', region_id: 14 },
       
       // Región de Magallanes y de la Antártica Chilena (XII)
-      { codigo: '151', nombre: 'Magallanes', region_id: 15 },
-      { codigo: '152', nombre: 'Antártica Chilena', region_id: 15 },
-      { codigo: '153', nombre: 'Tierra del Fuego', region_id: 15 },
-      { codigo: '154', nombre: 'Última Esperanza', region_id: 15 }
+      { codigo: 'P151', nombre: 'Magallanes', region_id: 15 },
+      { codigo: 'P152', nombre: 'Antártica Chilena', region_id: 15 },
+      { codigo: 'P153', nombre: 'Tierra del Fuego', region_id: 15 },
+      { codigo: 'P154', nombre: 'Última Esperanza', region_id: 15 }
     ]
   })
 

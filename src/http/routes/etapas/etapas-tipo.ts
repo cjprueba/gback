@@ -247,7 +247,7 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     schema: {
       tags: ['Etapas Tipo'],
       summary: 'Obtener tipo de etapa por ID de etapa',
-      description: 'Retorna la información completa del tipo de etapa asociado a una etapa específica. Incluye todos los campos de configuración que definen qué información es requerida para este tipo de etapa.',
+      description: 'Retorna la información completa del tipo de etapa asociado a una etapa específica. Incluye todos los campos de configuración que definen qué información es requerida para este tipo de etapa, así como las carpetas transversales asociadas.',
       params: z.object({
         etapaId: z.string().regex(/^\d+$/, 'Etapa ID debe ser un número válido').transform(Number)
       }),
@@ -276,7 +276,16 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
             plazo_total_concesion: z.boolean(),
             decreto_adjudicacion: z.boolean(),
             sociedad_concesionaria: z.boolean(),
-            inspector_fiscal_id: z.boolean()
+            inspector_fiscal_id: z.boolean(),
+            carpetas_transversales: z.array(z.object({
+              id: z.number(),
+              nombre: z.string(),
+              descripcion: z.string().nullable(),
+              color: z.string(),
+              orden: z.number().nullable(),
+              activa: z.boolean(),
+              estructura_carpetas: z.record(z.any()).nullable()
+            }))
           })
         }),
         404: z.object({
@@ -289,7 +298,13 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
     const { etapaId } = request.params;
     
     const etapa = await prisma.etapas_tipo.findUnique({
-      where: { id: etapaId }
+      where: { id: etapaId },
+      include: {
+        carpetas_transversales: {
+          where: { activa: true },
+          orderBy: { orden: 'asc' }
+        }
+      }
     });
     
     if (!etapa) {
@@ -323,7 +338,16 @@ export async function etapasTipoRoutes(app: FastifyInstance) {
         plazo_total_concesion: etapa.plazo_total_concesion,
         decreto_adjudicacion: etapa.decreto_adjudicacion,
         sociedad_concesionaria: etapa.sociedad_concesionaria,
-        inspector_fiscal_id: etapa.inspector_fiscal_id
+        inspector_fiscal_id: etapa.inspector_fiscal_id,
+        carpetas_transversales: etapa.carpetas_transversales.map(carpeta => ({
+          id: carpeta.id,
+          nombre: carpeta.nombre,
+          descripcion: carpeta.descripcion,
+          color: carpeta.color,
+          orden: carpeta.orden,
+          activa: carpeta.activa,
+          estructura_carpetas: carpeta.estructura_carpetas || {}
+        }))
       }
     };
   });

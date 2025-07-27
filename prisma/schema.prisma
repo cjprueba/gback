@@ -200,7 +200,6 @@ model provincias {
 
 model comunas {
   id          Int     @id @default(autoincrement())
-  codigo      String  @unique @db.VarChar(5)
   nombre      String  @db.VarChar(100)
   provincia_id Int
   region_id   Int
