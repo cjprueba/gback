@@ -116,8 +116,7 @@ export  async function etapasRoutes(app: FastifyInstance) {
             }).nullable(),
             comuna: z.object({
               id: z.number(),
-              nombre: z.string(),
-              codigo: z.string()
+              nombre: z.string()
             }).nullable(),
             inspector_fiscal: z.object({
               id: z.number(),
@@ -242,7 +241,6 @@ export  async function etapasRoutes(app: FastifyInstance) {
             comuna: z.object({
               id: z.number(),
               nombre: z.string(),
-              codigo: z.string()
             }).nullable(),
             inspector_fiscal: z.object({
               id: z.number(),
@@ -550,12 +548,12 @@ export  async function etapasRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /etapas/:proyecto_id/avanzar - Obtener etapa actual y siguiente etapa del proyecto
+        // GET /etapas/:proyecto_id/avanzar - Obtener etapa actual y siguiente etapa del proyecto
   server.get('/etapas/:proyecto_id/avanzar', {
     schema: {
       tags: ['Etapas'],
       summary: 'Obtener etapa actual y siguiente etapa del proyecto',
-      description: 'Obtiene la información completa de la etapa actual del proyecto y determina cuál sería la siguiente etapa en el flujo. Incluye todos los datos de la etapa actual y la información del tipo de etapa siguiente.',
+      description: 'Obtiene la información completa de la etapa actual del proyecto y determina cuál sería la siguiente etapa en el flujo. Incluye todos los datos de la etapa actual, la información del tipo de etapa siguiente y las carpetas transversales asociadas.',
       params: z.object({
         proyecto_id: z.string().regex(/^\d+$/, 'ID del proyecto debe ser un número válido').transform(Number)
       }),
@@ -587,7 +585,16 @@ export  async function etapasRoutes(app: FastifyInstance) {
                plazo_total_concesion: z.boolean(),
                decreto_adjudicacion: z.boolean(),
                sociedad_concesionaria: z.boolean(),
-               inspector_fiscal_id: z.boolean()
+               inspector_fiscal_id: z.boolean(),
+               carpetas_transversales: z.array(z.object({
+                 id: z.number(),
+                 nombre: z.string(),
+                 descripcion: z.string().nullable(),
+                 color: z.string(),
+                 orden: z.number().nullable(),
+                 activa: z.boolean(),
+                 estructura_carpetas: z.record(z.any()).nullable()
+               }))
              }).nullable(),
              etapas_anteriores: z.array(z.object({
                id: z.number(),
@@ -639,8 +646,7 @@ export  async function etapasRoutes(app: FastifyInstance) {
                }).nullable(),
                comuna: z.object({
                  id: z.number(),
-                 nombre: z.string(),
-                 codigo: z.string()
+                 nombre: z.string()
                }).nullable(),
                inspector_fiscal: z.object({
                  id: z.number(),
@@ -743,9 +749,15 @@ export  async function etapasRoutes(app: FastifyInstance) {
       // Determinar la siguiente etapa basándose en el último etapa_tipo_id usado + 1
       const ultimoEtapaTipoId = Math.max(...todasLasEtapasAnteriores.map(etapa => etapa.etapa_tipo_id));
       const siguienteEtapaTipoId = ultimoEtapaTipoId + 1;
-      // Buscar si existe el siguiente tipo de etapa
+      // Buscar si existe el siguiente tipo de etapa con sus carpetas transversales
       const siguienteEtapa = await prisma.etapas_tipo.findUnique({
-        where: { id: siguienteEtapaTipoId }
+        where: { id: siguienteEtapaTipoId },
+        include: {
+          carpetas_transversales: {
+            where: { activa: true },
+            orderBy: { orden: 'asc' }
+          }
+        }
       });
       const esUltimaEtapa = !siguienteEtapa;
 
@@ -754,7 +766,18 @@ export  async function etapasRoutes(app: FastifyInstance) {
         message: `Información completa del proyecto ${proyecto_id} obtenida exitosamente`,
         data: {
           etapas_anteriores: todasLasEtapasAnteriores,
-          siguiente_etapa: siguienteEtapa,
+          siguiente_etapa: siguienteEtapa ? {
+            ...siguienteEtapa,
+            carpetas_transversales: siguienteEtapa.carpetas_transversales.map(carpeta => ({
+              id: carpeta.id,
+              nombre: carpeta.nombre,
+              descripcion: carpeta.descripcion,
+              color: carpeta.color,
+              orden: carpeta.orden,
+              activa: carpeta.activa,
+              estructura_carpetas: carpeta.estructura_carpetas || {}
+            }))
+          } : null,
           es_ultima_etapa: esUltimaEtapa
         }
       };

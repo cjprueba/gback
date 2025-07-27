@@ -18,7 +18,6 @@ export  async function comunaRoutes(fastify: FastifyInstance) {
         response: {
           200: z.array(z.object({
             id: z.number(),
-            codigo: z.string(),
             nombre: z.string(),
             provincia_id: z.number(),
             region_id: z.number(),
@@ -57,7 +56,6 @@ export  async function comunaRoutes(fastify: FastifyInstance) {
         response: {
           200: z.object({
             id: z.number(),
-            codigo: z.string(),
             nombre: z.string(),
             provincia_id: z.number(),
             region_id: z.number(),
