@@ -1072,6 +1072,224 @@ export async function documentosRoutes(app: FastifyInstance) {
       }
     );
 
+  // Get document properties by ID
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/documentos/:documentoId',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Obtener propiedades de un documento',
+          description: 'Recupera todas las propiedades y metadatos de un documento específico',
+          params: z.object({
+            documentoId: z.string().uuid(),
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              documento: z.object({
+                id: z.string(),
+                nombre_archivo: z.string(),
+                extension: z.string().nullable(),
+                tamano: z.number().nullable(),
+                tipo_mime: z.string().nullable(),
+                descripcion: z.string().nullable(),
+                categoria: z.string().nullable(),
+                estado: z.string().nullable(),
+                version: z.string().nullable(),
+                archivo_relacionado: z.string().nullable(),
+                carpeta_id: z.number(),
+                tipo_documento_id: z.number().nullable(),
+                s3_path: z.string().nullable(),
+                s3_bucket_name: z.string().nullable(),
+                s3_created: z.boolean(),
+                hash_integridad: z.string().nullable(),
+                etiquetas: z.array(z.string()),
+                proyecto_id: z.number().nullable(),
+                usuario_creador: z.number(),
+                subido_por: z.number(),
+                metadata: z.any().nullable(),
+                eliminado: z.boolean(),
+                fecha_creacion: z.date(),
+                fecha_ultima_actualizacion: z.date(),
+                // Información relacionada
+                carpeta: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable(),
+                  s3_path: z.string().nullable(),
+                }),
+                creador: z.object({
+                  id: z.number(),
+                  nombre_completo: z.string().nullable(),
+                  correo_electronico: z.string().nullable(),
+                }),
+                subio_por: z.object({
+                  id: z.number(),
+                  nombre_completo: z.string().nullable(),
+                  correo_electronico: z.string().nullable(),
+                }),
+                proyecto: z.object({
+                  id: z.number(),
+                  nombre: z.string()
+                }).nullable(),
+                tipo_documento: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable(),
+                  requiere_nro_pro_exp: z.boolean(),
+                  requiere_saf_exp: z.boolean(),
+                  requiere_numerar: z.boolean(),
+                  requiere_tramitar: z.boolean(),
+                }).nullable(),
+                documento_relacionado: z.object({
+                  id: z.string(),
+                  nombre_archivo: z.string(),
+                  extension: z.string().nullable(),
+                  descripcion: z.string().nullable(),
+                }).nullable(),
+                documentos_relacionados: z.array(z.object({
+                  id: z.string(),
+                  nombre_archivo: z.string(),
+                  extension: z.string().nullable(),
+                  descripcion: z.string().nullable(),
+                }))
+              }),
+            }),
+            400: z.object({
+              error: z.string(),
+            }),
+            404: z.object({
+              error: z.string(),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { documentoId } = request.params;
+
+          // Get document with all related information
+          const documento = await (prisma as any).documentos.findFirst({
+            where: {
+              id: documentoId,
+            },
+            include: {
+              carpeta: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  descripcion: true,
+                  s3_path: true,
+                },
+              },
+              creador: {
+                select: {
+                  id: true,
+                  nombre_completo: true,
+                  correo_electronico: true,
+                },
+              },
+              subio_por: {
+                select: {
+                  id: true,
+                  nombre_completo: true,
+                  correo_electronico: true,
+                },
+              },
+              proyecto: {
+                select: {
+                  id: true,
+                  nombre: true
+                },
+              },
+              tipo_documento: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  descripcion: true,
+                  requiere_nro_pro_exp: true,
+                  requiere_saf_exp: true,
+                  requiere_numerar: true,
+                  requiere_tramitar: true,
+                },
+              },
+              documento_relacionado: {
+                select: {
+                  id: true,
+                  nombre_archivo: true,
+                  extension: true,
+                  descripcion: true,
+                },
+              },
+              documentos_relacionados: {
+                select: {
+                  id: true,
+                  nombre_archivo: true,
+                  extension: true,
+                  descripcion: true,
+                },
+              }
+            },
+          });
+
+          if (!documento) {
+            throw new BadRequestError('Document not found');
+          }
+
+          return reply.send({
+            success: true,
+            documento: {
+              id: documento.id,
+              nombre_archivo: documento.nombre_archivo,
+              extension: documento.extension,
+              tamano: documento.tamano ? Number(documento.tamano) : null,
+              tipo_mime: documento.tipo_mime,
+              descripcion: documento.descripcion,
+              categoria: documento.categoria,
+              estado: documento.estado,
+              version: documento.version,
+              archivo_relacionado: documento.archivo_relacionado,
+              carpeta_id: documento.carpeta_id,
+              tipo_documento_id: documento.tipo_documento_id,
+              s3_path: documento.s3_path,
+              s3_bucket_name: documento.s3_bucket_name,
+              s3_created: documento.s3_created,
+              hash_integridad: documento.hash_integridad,
+              etiquetas: documento.etiquetas,
+              proyecto_id: documento.proyecto_id,
+              usuario_creador: documento.usuario_creador,
+              subido_por: documento.subido_por,
+              metadata: documento.metadata,
+              eliminado: documento.eliminado,
+              fecha_creacion: documento.fecha_creacion,
+              fecha_ultima_actualizacion: documento.fecha_ultima_actualizacion,
+              carpeta: documento.carpeta,
+              creador: documento.creador,
+              subio_por: documento.subio_por,
+              proyecto: documento.proyecto,
+              tipo_documento: documento.tipo_documento,
+              documento_relacionado: documento.documento_relacionado,
+              documentos_relacionados: documento.documentos_relacionados
+            },
+          });
+
+        } catch (error) {
+          console.error('Error getting document properties:', error);
+          
+          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+            throw error;
+          }
+          
+          throw new BadRequestError('Failed to get document properties');
+        }
+      }
+    );
+
   // Get document type by ID
   app
     .withTypeProvider<ZodTypeProvider>()
