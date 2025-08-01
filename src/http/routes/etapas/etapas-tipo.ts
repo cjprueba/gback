@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma';
 const createEtapaTipoSchema = z.object({
   nombre: z.string().min(1, 'Nombre es requerido').max(100, 'Nombre no puede exceder 100 caracteres'),
   descripcion: z.string().optional(),
-  color: z.string().optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color debe ser un código hexadecimal válido (ej: #3498DB)').optional(),
   carpetas_iniciales: z.record(z.any()).optional().default({}),
   
   // Campos booleanos para configurar qué información se requiere

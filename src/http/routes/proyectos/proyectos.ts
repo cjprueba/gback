@@ -276,7 +276,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ['Proyectos'],
         summary: 'Obtener lista de proyectos',
-        description: 'Retorna una lista paginada de todos los proyectos con información básica incluyendo el tipo de etapa más reciente, el creador y la carpeta raíz.',
+        description: 'Retorna una lista paginada de todos los proyectos activos (no eliminados) con información básica incluyendo el tipo de etapa más reciente, el creador y la carpeta raíz.',
         response: {
           200: z.object({
             success: z.boolean(),
@@ -307,6 +307,9 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       }
     }, async () => {
       const proyectos = await prisma.proyectos.findMany({
+        where: {
+          eliminado: false
+        },
         select: {
           id: true,
           nombre: true,
@@ -347,7 +350,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ['Proyectos'],
         summary: 'Obtener proyecto por ID',
-        description: 'Retorna la información completa de un proyecto específico incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador.',
+        description: 'Retorna la información completa de un proyecto específico activo (no eliminado) incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador.',
         params: z.object({
           id: z.string().transform((val) => parseInt(val, 10))
         }),
@@ -441,7 +444,10 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       
       const proyecto = await prisma.proyectos.findUnique({
-        where: { id },
+        where: { 
+          id,
+          eliminado: false
+        },
         select: {
           id: true,
           nombre: true,
@@ -492,7 +498,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       if (!proyecto) {
         return reply.status(404).send({
           success: false,
-          message: 'Proyecto no encontrado'
+          message: 'Proyecto no encontrado o ha sido eliminado'
         });
       }
       
@@ -1155,5 +1161,277 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           message: 'Error al obtener la etapa actual del proyecto'
         });
       }
+    })
+
+    .delete('/proyectos/:id', {
+      schema: {
+        tags: ['Proyectos'],
+        summary: 'Eliminar proyecto (soft delete)',
+        description: 'Realiza un soft delete del proyecto marcándolo como eliminado sin borrar físicamente los datos. El proyecto y sus datos asociados permanecen en la base de datos pero no aparecen en las consultas normales.',
+        params: z.object({
+          id: z.string().transform((val) => parseInt(val, 10))
+        }),
+        body: z.object({
+          usuario_eliminador: z.number().int().min(1, 'Usuario que realiza la eliminación es requerido'),
+          motivo_eliminacion: z.string().max(500).optional()
+        }),
+        response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              eliminado: z.boolean(),
+              fecha_eliminacion: z.date()
+            })
+          }),
+          404: z.object({
+            success: z.boolean(),
+            message: z.string()
+          }),
+          400: z.object({
+            success: z.boolean(),
+            message: z.string()
+          })
+        }
+      }
+    }, async (request, reply) => {
+      const { id } = request.params;
+      const { usuario_eliminador, motivo_eliminacion } = request.body;
+      
+      try {
+        // Verificar que el proyecto existe y no está ya eliminado
+        const proyecto = await prisma.proyectos.findUnique({
+          where: { id },
+          include: {
+            etapas_registro: {
+              where: { activa: true },
+              include: {
+                etapa_tipo: true
+              }
+            }
+          }
+        });
+        
+        if (!proyecto) {
+          return reply.status(404).send({
+            success: false,
+            message: 'Proyecto no encontrado'
+          });
+        }
+
+        if (proyecto.eliminado) {
+          return reply.status(400).send({
+            success: false,
+            message: 'El proyecto ya ha sido eliminado'
+          });
+        }
+
+        // Verificar que el usuario que elimina existe
+        const usuario = await prisma.usuarios.findUnique({
+          where: { id: usuario_eliminador }
+        });
+
+        if (!usuario) {
+          return reply.status(400).send({
+            success: false,
+            message: 'Usuario eliminador no encontrado'
+          });
+        }
+
+        // Realizar soft delete del proyecto
+        const proyectoEliminado = await prisma.proyectos.update({
+          where: { id },
+          data: {
+            eliminado: true
+          }
+        });
+
+        // Desactivar todas las etapas activas del proyecto
+        if (proyecto.etapas_registro.length > 0) {
+          await prisma.etapas_registro.updateMany({
+            where: {
+              proyecto_id: id,
+              activa: true
+            },
+            data: {
+              activa: false
+            }
+          });
+        }
+
+        // Opcional: Crear un registro de auditoría de la eliminación
+        // Esto dependería de si tienes una tabla de auditoría configurada
+        console.log(`Proyecto "${proyecto.nombre}" eliminado por usuario ${usuario_eliminador}. Motivo: ${motivo_eliminacion || 'No especificado'}`);
+
+        return reply.status(200).send({
+          success: true,
+          message: 'Proyecto eliminado exitosamente',
+          data: {
+            id: proyectoEliminado.id,
+            nombre: proyectoEliminado.nombre,
+            eliminado: proyectoEliminado.eliminado,
+            fecha_eliminacion: new Date()
+          }
+        });
+
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        return reply.status(500).send({
+          success: false,
+          message: 'Error al eliminar el proyecto'
+        });
+      }
+    })
+
+    .patch('/proyectos/:id/restaurar', {
+      schema: {
+        tags: ['Proyectos'],
+        summary: 'Restaurar proyecto eliminado',
+        description: 'Restaura un proyecto que ha sido eliminado mediante soft delete, marcándolo como activo nuevamente.',
+        params: z.object({
+          id: z.string().transform((val) => parseInt(val, 10))
+        }),
+        body: z.object({
+          usuario_restaurador: z.number().int().min(1, 'Usuario que realiza la restauración es requerido'),
+          motivo_restauracion: z.string().max(500).optional()
+        }),
+        response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.object({
+              id: z.number(),
+              nombre: z.string(),
+              eliminado: z.boolean(),
+              fecha_restauracion: z.date()
+            })
+          }),
+          404: z.object({
+            success: z.boolean(),
+            message: z.string()
+          }),
+          400: z.object({
+            success: z.boolean(),
+            message: z.string()
+          })
+        }
+      }
+    }, async (request, reply) => {
+      const { id } = request.params;
+      const { usuario_restaurador, motivo_restauracion } = request.body;
+      
+      try {
+        // Verificar que el proyecto existe
+        const proyecto = await prisma.proyectos.findUnique({
+          where: { id }
+        });
+        
+        if (!proyecto) {
+          return reply.status(404).send({
+            success: false,
+            message: 'Proyecto no encontrado'
+          });
+        }
+
+        if (!proyecto.eliminado) {
+          return reply.status(400).send({
+            success: false,
+            message: 'El proyecto no ha sido eliminado'
+          });
+        }
+
+        // Verificar que el usuario que restaura existe
+        const usuario = await prisma.usuarios.findUnique({
+          where: { id: usuario_restaurador }
+        });
+
+        if (!usuario) {
+          return reply.status(400).send({
+            success: false,
+            message: 'Usuario restaurador no encontrado'
+          });
+        }
+
+        // Restaurar el proyecto
+        const proyectoRestaurado = await prisma.proyectos.update({
+          where: { id },
+          data: {
+            eliminado: false
+          }
+        });
+
+        console.log(`Proyecto "${proyecto.nombre}" restaurado por usuario ${usuario_restaurador}. Motivo: ${motivo_restauracion || 'No especificado'}`);
+
+        return reply.status(200).send({
+          success: true,
+          message: 'Proyecto restaurado exitosamente',
+          data: {
+            id: proyectoRestaurado.id,
+            nombre: proyectoRestaurado.nombre,
+            eliminado: proyectoRestaurado.eliminado,
+            fecha_restauracion: new Date()
+          }
+        });
+
+      } catch (error) {
+        console.error('Error restoring project:', error);
+        return reply.status(500).send({
+          success: false,
+          message: 'Error al restaurar el proyecto'
+        });
+      }
+    })
+
+    .get('/proyectos/eliminados', {
+      schema: {
+        tags: ['Proyectos'],
+        summary: 'Obtener lista de proyectos eliminados',
+        description: 'Retorna una lista de todos los proyectos que han sido eliminados mediante soft delete.',
+        response: {
+          200: z.object({
+            success: z.boolean(),
+            message: z.string(),
+            data: z.array(z.object({
+              id: z.number(),
+              nombre: z.string(),
+              created_at: z.date(),
+              eliminado: z.boolean(),
+              creador: z.object({
+                id: z.number(),
+                nombre_completo: z.string().nullable()
+              })
+            }))
+          })
+        }
+      }
+    }, async () => {
+      const proyectosEliminados = await prisma.proyectos.findMany({
+        where: {
+          eliminado: true
+        },
+        select: {
+          id: true,
+          nombre: true,
+          created_at: true,
+          eliminado: true,
+          creador: {
+            select: {
+              id: true,
+              nombre_completo: true
+            }
+          }
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      });
+      
+      return {
+        success: true,
+        message: 'Lista de proyectos eliminados obtenida exitosamente',
+        data: proyectosEliminados
+      };
     });
 }

@@ -278,6 +278,7 @@ model proyectos {
   unidad_id          Int?
   creado_por         Int
   created_at         DateTime  @default(now())
+  eliminado          Boolean   @default(false)
 
   // Campos para manejo de S3
   s3_bucket_name     String?   @db.VarChar(100)

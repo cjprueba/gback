@@ -219,7 +219,7 @@ async function main() {
       { 
         nombre: 'Cartera de proyectos', 
         descripcion: 'Etapa de inicio de proyecto',
-        color: 'rgb(52, 152, 219)',
+        color: '#3498DB',
         carpetas_iniciales: {
           "Desarrollo de Proyectos": {}
         },
@@ -246,7 +246,7 @@ async function main() {
       { 
         nombre: 'Proyectos en Licitación', 
         descripcion: 'Proceso de licitación',
-        color: 'rgb(241, 196, 15)',
+        color: '#F1C40F',
         carpetas_iniciales: {
           "Proyecto en Licitación": {
               "Proyecto de Licitación": {},
@@ -276,7 +276,7 @@ async function main() {
       { 
         nombre: 'Concesiones en Construcción', 
         descripcion: '-',
-        color: 'rgb(231, 76, 60)',
+        color: '#E74C3C',
         carpetas_iniciales: {
           "Coordinación Técnica": {
               "SIAC": {},
@@ -307,7 +307,7 @@ async function main() {
       { 
         nombre: 'Concesiones en Operación', 
         descripcion: '-',
-        color: 'rgb(46, 204, 113)',
+        color: '#2ECC71',
         carpetas_iniciales: {
           "Proyectos OPS": {},
           "Obras": {}
@@ -335,7 +335,7 @@ async function main() {
       { 
         nombre: 'Concesiones en Operación y Construcción', 
         descripcion: '-',
-        color: 'rgb(155, 89, 182)',
+        color: '#9B59B6',
         carpetas_iniciales: {
           "Modificaciones de Contrato": {}
         },
@@ -362,7 +362,7 @@ async function main() {
       { 
         nombre: 'Concesiones Finalizadas', 
         descripcion: '-',
-        color: 'rgb(127, 140, 141)',
+        color: '#7F8C8D',
         carpetas_iniciales: {
           "Concesiones Finalizadas": {}
         },
@@ -398,7 +398,7 @@ async function main() {
       data: {
         nombre: 'Estructura Completa de Documentos',
         descripcion: 'Estructura transversal completa para todos los documentos del proyecto',
-        color: 'rgb(52, 152, 219)',
+        color: '#7927F5',
         orden: 1,
         activa: true,
         etapa_tipo_id: etapasTipoCartera.id,
