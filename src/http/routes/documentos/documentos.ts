@@ -1634,4 +1634,291 @@ export async function documentosRoutes(app: FastifyInstance) {
       }
     );
 
+  // Edit document properties
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .put(
+      '/documentos/:documentoId',
+      {
+        schema: {
+          tags: ['Documentos'],
+          summary: 'Editar propiedades de un documento',
+          description: 'Actualiza las propiedades de un documento existente',
+          params: z.object({
+            documentoId: z.string().uuid(),
+          }),
+          body: z.object({
+            nombre_archivo: z.string().optional(),
+            descripcion: z.string().nullable().optional(),
+            categoria: z.string().nullable().optional(),
+            estado: z.string().nullable().optional(),
+            version: z.string().nullable().optional(),
+            archivo_relacionado: z.string().nullable().optional(),
+            tipo_documento_id: z.number().nullable().optional(),
+            etiquetas: z.array(z.string()).optional(),
+            metadata: z.any().optional(),
+          }),
+          response: {
+            200: z.object({
+              success: z.boolean(),
+              message: z.string(),
+              documento: z.object({
+                id: z.string(),
+                nombre_archivo: z.string(),
+                extension: z.string().nullable(),
+                tamano: z.number().nullable(),
+                tipo_mime: z.string().nullable(),
+                descripcion: z.string().nullable(),
+                categoria: z.string().nullable(),
+                estado: z.string().nullable(),
+                version: z.string().nullable(),
+                archivo_relacionado: z.string().nullable(),
+                carpeta_id: z.number(),
+                tipo_documento_id: z.number().nullable(),
+                s3_path: z.string().nullable(),
+                s3_bucket_name: z.string().nullable(),
+                s3_created: z.boolean(),
+                hash_integridad: z.string().nullable(),
+                etiquetas: z.array(z.string()),
+                proyecto_id: z.number().nullable(),
+                usuario_creador: z.number(),
+                subido_por: z.number(),
+                metadata: z.any().nullable(),
+                eliminado: z.boolean(),
+                fecha_creacion: z.date(),
+                fecha_ultima_actualizacion: z.date(),
+                // Información relacionada
+                carpeta: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable(),
+                  s3_path: z.string().nullable(),
+                }),
+                creador: z.object({
+                  id: z.number(),
+                  nombre_completo: z.string().nullable(),
+                  correo_electronico: z.string().nullable(),
+                }),
+                subio_por: z.object({
+                  id: z.number(),
+                  nombre_completo: z.string().nullable(),
+                  correo_electronico: z.string().nullable(),
+                }),
+                proyecto: z.object({
+                  id: z.number(),
+                  nombre: z.string()
+                }).nullable(),
+                tipo_documento: z.object({
+                  id: z.number(),
+                  nombre: z.string(),
+                  descripcion: z.string().nullable(),
+                  requiere_nro_pro_exp: z.boolean(),
+                  requiere_saf_exp: z.boolean(),
+                  requiere_numerar: z.boolean(),
+                  requiere_tramitar: z.boolean(),
+                }).nullable(),
+                documento_relacionado: z.object({
+                  id: z.string(),
+                  nombre_archivo: z.string(),
+                  extension: z.string().nullable(),
+                  descripcion: z.string().nullable(),
+                }).nullable(),
+                documentos_relacionados: z.array(z.object({
+                  id: z.string(),
+                  nombre_archivo: z.string(),
+                  extension: z.string().nullable(),
+                  descripcion: z.string().nullable(),
+                }))
+              }),
+            }),
+            400: z.object({
+              error: z.string(),
+            }),
+            404: z.object({
+              error: z.string(),
+            }),
+            500: z.object({
+              error: z.string(),
+            }),
+          },
+        },
+      },
+      async (request, reply) => {
+        try {
+          const { documentoId } = request.params;
+          const updateData = request.body;
+
+          // Get document to check if it exists and is not deleted
+          const existingDocumento = await (prisma as any).documentos.findFirst({
+            where: {
+              id: documentoId,
+              eliminado: false,
+            },
+          });
+
+          if (!existingDocumento) {
+            throw new BadRequestError('Document not found or has been deleted');
+          }
+
+          // Validate tipo_documento_id if provided
+          if (updateData.tipo_documento_id !== undefined && updateData.tipo_documento_id !== null) {
+            const tipoDocumento = await (prisma as any).tipos_documentos.findFirst({
+              where: {
+                id: updateData.tipo_documento_id,
+                activo: true,
+              },
+            });
+
+            if (!tipoDocumento) {
+              throw new BadRequestError('Document type not found or is not active');
+            }
+          }
+
+          // Validate archivo_relacionado if provided
+          if (updateData.archivo_relacionado !== undefined && updateData.archivo_relacionado !== null) {
+            const documentoRelacionado = await (prisma as any).documentos.findFirst({
+              where: {
+                id: updateData.archivo_relacionado,
+                eliminado: false,
+              },
+            });
+
+            if (!documentoRelacionado) {
+              throw new BadRequestError('Related document not found or has been deleted');
+            }
+          }
+
+          // Prepare update data
+          const dataToUpdate: any = {
+            ...updateData,
+            fecha_ultima_actualizacion: new Date(),
+          };
+
+          // Update document
+          const documentoActualizado = await (prisma as any).documentos.update({
+            where: {
+              id: documentoId,
+            },
+            data: dataToUpdate,
+            include: {
+              carpeta: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  descripcion: true,
+                  s3_path: true,
+                },
+              },
+              creador: {
+                select: {
+                  id: true,
+                  nombre_completo: true,
+                  correo_electronico: true,
+                },
+              },
+              subio_por: {
+                select: {
+                  id: true,
+                  nombre_completo: true,
+                  correo_electronico: true,
+                },
+              },
+              proyecto: {
+                select: {
+                  id: true,
+                  nombre: true
+                },
+              },
+              tipo_documento: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  descripcion: true,
+                  requiere_nro_pro_exp: true,
+                  requiere_saf_exp: true,
+                  requiere_numerar: true,
+                  requiere_tramitar: true,
+                },
+              },
+              documento_relacionado: {
+                select: {
+                  id: true,
+                  nombre_archivo: true,
+                  extension: true,
+                  descripcion: true,
+                },
+              },
+              documentos_relacionados: {
+                select: {
+                  id: true,
+                  nombre_archivo: true,
+                  extension: true,
+                  descripcion: true,
+                },
+              }
+            },
+          });
+
+          // Create audit record
+          await (prisma as any).archivo_historial.create({
+            data: {
+              archivo_id: documentoId,
+              usuario_id: 1, // Default user ID - should be passed as parameter
+              accion: 'update',
+              descripcion: 'Document properties updated',
+              version_anterior: existingDocumento.version,
+              version_nueva: documentoActualizado.version,
+            },
+          });
+
+          return reply.send({
+            success: true,
+            message: 'Document updated successfully',
+            documento: {
+              id: documentoActualizado.id,
+              nombre_archivo: documentoActualizado.nombre_archivo,
+              extension: documentoActualizado.extension,
+              tamano: documentoActualizado.tamano ? Number(documentoActualizado.tamano) : null,
+              tipo_mime: documentoActualizado.tipo_mime,
+              descripcion: documentoActualizado.descripcion,
+              categoria: documentoActualizado.categoria,
+              estado: documentoActualizado.estado,
+              version: documentoActualizado.version,
+              archivo_relacionado: documentoActualizado.archivo_relacionado,
+              carpeta_id: documentoActualizado.carpeta_id,
+              tipo_documento_id: documentoActualizado.tipo_documento_id,
+              s3_path: documentoActualizado.s3_path,
+              s3_bucket_name: documentoActualizado.s3_bucket_name,
+              s3_created: documentoActualizado.s3_created,
+              hash_integridad: documentoActualizado.hash_integridad,
+              etiquetas: documentoActualizado.etiquetas,
+              proyecto_id: documentoActualizado.proyecto_id,
+              usuario_creador: documentoActualizado.usuario_creador,
+              subido_por: documentoActualizado.subido_por,
+              metadata: documentoActualizado.metadata,
+              eliminado: documentoActualizado.eliminado,
+              fecha_creacion: documentoActualizado.fecha_creacion,
+              fecha_ultima_actualizacion: documentoActualizado.fecha_ultima_actualizacion,
+              carpeta: documentoActualizado.carpeta,
+              creador: documentoActualizado.creador,
+              subio_por: documentoActualizado.subio_por,
+              proyecto: documentoActualizado.proyecto,
+              tipo_documento: documentoActualizado.tipo_documento,
+              documento_relacionado: documentoActualizado.documento_relacionado,
+              documentos_relacionados: documentoActualizado.documentos_relacionados
+            },
+          });
+
+        } catch (error) {
+          console.error('Error updating document:', error);
+          
+          if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+            throw error;
+          }
+          
+          throw new BadRequestError('Failed to update document');
+        }
+      }
+    );
+
 }
