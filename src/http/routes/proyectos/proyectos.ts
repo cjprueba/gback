@@ -535,7 +535,6 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           
           // Campos de etapas_registro (opcional, para actualizar la etapa existente)
           etapas_registro: z.object({
-            etapa_tipo_id: z.number(),
             tipo_iniciativa_id: z.number().optional(),
             tipo_obra_id: z.number().optional(),
             region_id: z.number().optional(),
@@ -605,14 +604,18 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
 
       // Si se incluye información de etapas_registro
       if (etapas_registro) {
-        // Buscar si ya existe un registro de etapa con el etapa_tipo_id para este proyecto
-        const etapaExistente = await prisma.etapas_registro.findFirst({
+        // Buscar la última etapa existente con el etapa_tipo_id para este proyecto
+        const etapasExistentes = await prisma.etapas_registro.findMany({
           where: {
             proyecto_id: id,
-            etapa_tipo_id: etapas_registro.etapa_tipo_id,
             activa: true
+          },
+          orderBy: {
+            fecha_creacion: 'desc'
           }
         });
+        
+        const etapaExistente = etapasExistentes[0]; // Tomar la última etapa (más reciente)
 
         console.log(" etapas existente");
         console.log(etapaExistente);
