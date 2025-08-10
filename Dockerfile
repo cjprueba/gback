@@ -7,13 +7,13 @@ WORKDIR /app
 # Copy package files first (for better Docker layer caching)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
-
 # Copy prisma schema
 COPY prisma ./prisma
 
-# Generate Prisma client BEFORE copying source code
+# Install dependencies (this will also run postinstall script)
+RUN npm install
+
+# Generate Prisma client
 RUN npx prisma generate
 
 # Copy tsconfig and source code

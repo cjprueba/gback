@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gestor-backend-sa
+  namespace: gestor-backend
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gestor-backend-role
+  namespace: gestor-backend
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "persistentvolumeclaims", "secrets", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gestor-backend-rolebinding
+  namespace: gestor-backend
+subjects:
+- kind: User
+  name: lfuentes
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: gestor-backend-role
+  apiGroup: rbac.authorization.k8s.io

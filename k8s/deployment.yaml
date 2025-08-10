@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gestor-backend
+  labels:
+    app: gestor-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gestor-backend
+  template:
+    metadata:
+      labels:
+        app: gestor-backend
+    spec:
+      containers:
+      - name: gestor-backend
+        image: gestor-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gestor-backend-secrets
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: gestor-backend-secrets
+              key: jwt-secret
+        - name: MINIO_ENDPOINT
+          value: "minio-service"
+        - name: MINIO_PORT
+          value: "9000"
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gestor-backend-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gestor-backend-secrets
+              key: minio-secret-key
+        - name: MINIO_BUCKET_NAME
+          value: "gestor-documents"
+        - name: MINIO_USE_SSL
+          value: "false"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          failureThreshold: 30
+          periodSeconds: 10

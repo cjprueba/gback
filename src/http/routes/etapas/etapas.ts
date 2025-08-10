@@ -3,6 +3,53 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import z from 'zod';
 import { prisma } from '@/lib/prisma';
 
+// Helper function to transform flat geographical data into deeply nested hierarchical structure
+function transformGeographicalData(etapasGeografia: any[]) {
+  // Create a map of regions with their provinces and communes
+  const regionsMap = new Map();
+  
+  // Process all geographical data from the unified table
+  // Now each record represents a specific commune with its complete hierarchy
+  etapasGeografia.forEach(etapaGeo => {
+    const { region, provincia, comuna } = etapaGeo;
+    
+    // Ensure we have all the geographical data
+    if (region && provincia && comuna) {
+      // Add region if not exists
+      if (!regionsMap.has(region.id)) {
+        regionsMap.set(region.id, {
+          ...region,
+          etapas_provincias: []
+        });
+      }
+      
+      const regionData = regionsMap.get(region.id);
+      
+      // Add province if not exists
+      let provinciaData = regionData.etapas_provincias.find((p: any) => p.provincia.id === provincia.id);
+      if (!provinciaData) {
+        provinciaData = {
+          provincia: {
+            ...provincia,
+            etapas_comunas: []
+          }
+        };
+        regionData.etapas_provincias.push(provinciaData);
+      }
+      
+      // Add comuna if not exists
+      if (!provinciaData.provincia.etapas_comunas.find((c: any) => c.comuna.id === comuna.id)) {
+        provinciaData.provincia.etapas_comunas.push({
+          comuna: comuna
+        });
+      }
+    }
+  });
+  
+  // Convert map to array
+  return Array.from(regionsMap.values());
+}
+
 // Esquema Zod para crear etapa
 const createEtapaSchema = z.object({
   etapa_tipo_id: z.number().int().min(1, 'ID de tipo de etapa es requerido'),
@@ -104,20 +151,28 @@ export  async function etapasRoutes(app: FastifyInstance) {
               id: z.number(),
               nombre: z.string()
             }).nullable(),
-            region: z.object({
+            etapas_regiones: z.array(z.object({
               id: z.number(),
+              codigo: z.string(),
               nombre: z.string(),
-              codigo: z.string()
-            }).nullable(),
-            provincia: z.object({
-              id: z.number(),
-              nombre: z.string(),
-              codigo: z.string()
-            }).nullable(),
-            comuna: z.object({
-              id: z.number(),
-              nombre: z.string()
-            }).nullable(),
+              nombre_corto: z.string().nullable(),
+              etapas_provincias: z.array(z.object({
+                provincia: z.object({
+                  id: z.number(),
+                  codigo: z.string(),
+                  nombre: z.string(),
+                  region_id: z.number()
+                }),
+                etapas_comunas: z.array(z.object({
+                  comuna: z.object({
+                    id: z.number(),
+                    nombre: z.string(),
+                    provincia_id: z.number(),
+                    region_id: z.number()
+                  })
+                }))
+              }))
+            })).nullable(),
             inspector_fiscal: z.object({
               id: z.number(),
               correo_electronico: z.string().nullable(),
@@ -145,9 +200,13 @@ export  async function etapasRoutes(app: FastifyInstance) {
           etapa_tipo: true,
           tipo_iniciativa: true,
           tipo_obra: true,
-          region: true,
-          provincia: true,
-          comuna: true,
+          etapas_geografia: {
+            include: {
+              region: true,
+              provincia: true,
+              comuna: true
+            }
+          },
           inspector_fiscal: {
             select: {
               id: true,
@@ -169,7 +228,10 @@ export  async function etapasRoutes(app: FastifyInstance) {
       return {
         success: true,
         message: 'Lista de etapas obtenida exitosamente',
-        data: etapas
+        data: etapas.map(etapa => ({
+          ...etapa,
+          etapas_regiones: transformGeographicalData(etapa.etapas_geografia)
+        }))
       };
     } catch (error) {
       reply.status(500);
@@ -228,20 +290,25 @@ export  async function etapasRoutes(app: FastifyInstance) {
               id: z.number(),
               nombre: z.string()
             }).nullable(),
-            region: z.object({
+            etapas_regiones: z.array(z.object({
               id: z.number(),
+              codigo: z.string(),
               nombre: z.string(),
-              codigo: z.string()
-            }).nullable(),
-            provincia: z.object({
-              id: z.number(),
-              nombre: z.string(),
-              codigo: z.string()
-            }).nullable(),
-            comuna: z.object({
-              id: z.number(),
-              nombre: z.string(),
-            }).nullable(),
+              nombre_corto: z.string().nullable(),
+              etapas_provincias: z.array(z.object({
+                provincia: z.object({
+                  id: z.number(),
+                  codigo: z.string(),
+                  nombre: z.string(),
+                  etapas_comunas: z.array(z.object({
+                    comuna: z.object({
+                      id: z.number(),
+                      nombre: z.string()
+                    })
+                  }))
+                })
+            })),
+            })).nullable(),
             inspector_fiscal: z.object({
               id: z.number(),
               correo_electronico: z.string().nullable(),
@@ -275,9 +342,13 @@ export  async function etapasRoutes(app: FastifyInstance) {
           etapa_tipo: true,
           tipo_iniciativa: true,
           tipo_obra: true,
-          region: true,
-          provincia: true,
-          comuna: true,
+          etapas_geografia: {
+            include: {
+              region: true,
+              provincia: true,
+              comuna: true
+            }
+          },
           inspector_fiscal: {
             select: {
               id: true,
@@ -303,10 +374,53 @@ export  async function etapasRoutes(app: FastifyInstance) {
         };
       }
   
+      // Transform geographical data to nested structure
+      let etapasRegiones = null;
+      let region_id = null;
+      let provincia_id = null;
+      let comuna_id = null;
+      
+      if (etapa.etapas_geografia && etapa.etapas_geografia.length > 0) {
+        etapasRegiones = transformGeographicalData(etapa.etapas_geografia);
+        const firstGeo = etapa.etapas_geografia[0];
+        region_id = firstGeo.region?.id || null;
+        provincia_id = firstGeo.provincia?.id || null;
+        comuna_id = firstGeo.comuna?.id || null;
+      }
+      
       return {
         success: true,
         message: `Detalle de etapa ${id} obtenido exitosamente`,
-        data: etapa
+        data: {
+          id: etapa.id,
+          etapa_tipo_id: etapa.etapa_tipo_id,
+          tipo_iniciativa_id: etapa.tipo_iniciativa_id,
+          tipo_obra_id: etapa.tipo_obra_id,
+          region_id,
+          provincia_id,
+          comuna_id,
+          volumen: etapa.volumen,
+          presupuesto_oficial: etapa.presupuesto_oficial,
+          valor_referencia: etapa.valor_referencia,
+          fecha_llamado_licitacion: etapa.fecha_llamado_licitacion,
+          fecha_recepcion_ofertas_tecnicas: etapa.fecha_recepcion_ofertas_tecnicas,
+          fecha_apertura_ofertas_economicas: etapa.fecha_apertura_ofertas_economicas,
+          fecha_inicio_concesion: etapa.fecha_inicio_concesion,
+          plazo_total_concesion: etapa.plazo_total_concesion,
+          decreto_adjudicacion: etapa.decreto_adjudicacion,
+          sociedad_concesionaria: etapa.sociedad_concesionaria,
+          inspector_fiscal_id: etapa.inspector_fiscal_id,
+          usuario_creador: etapa.usuario_creador,
+          fecha_creacion: etapa.fecha_creacion,
+          fecha_actualizacion: etapa.fecha_actualizacion,
+          activa: etapa.activa,
+          etapa_tipo: etapa.etapa_tipo,
+          tipo_iniciativa: etapa.tipo_iniciativa,
+          tipo_obra: etapa.tipo_obra,
+          etapas_regiones: etapasRegiones,
+          inspector_fiscal: etapa.inspector_fiscal,
+          usuario_creador_rel: etapa.usuario_creador_rel
+        }
       };
     } catch (error) {
       reply.status(500);
@@ -601,9 +715,6 @@ export  async function etapasRoutes(app: FastifyInstance) {
                etapa_tipo_id: z.number(),
                tipo_iniciativa_id: z.number().nullable(),
                tipo_obra_id: z.number().nullable(),
-               region_id: z.number().nullable(),
-               provincia_id: z.number().nullable(),
-               comuna_id: z.number().nullable(),
                volumen: z.string().nullable(),
                presupuesto_oficial: z.string().nullable(),
                valor_referencia: z.string().nullable(),
@@ -634,20 +745,26 @@ export  async function etapasRoutes(app: FastifyInstance) {
                  id: z.number(),
                  nombre: z.string()
                }).nullable(),
-               region: z.object({
+               // Deeply nested hierarchical geographical data
+               etapas_regiones: z.array(z.object({
                  id: z.number(),
+                 codigo: z.string(),
                  nombre: z.string(),
-                 codigo: z.string()
-               }).nullable(),
-               provincia: z.object({
-                 id: z.number(),
-                 nombre: z.string(),
-                 codigo: z.string()
-               }).nullable(),
-               comuna: z.object({
-                 id: z.number(),
-                 nombre: z.string()
-               }).nullable(),
+                 nombre_corto: z.string().nullable(),
+                 etapas_provincias: z.array(z.object({
+                   provincia: z.object({
+                     id: z.number(),
+                     codigo: z.string(),
+                     nombre: z.string(),
+                     etapas_comunas: z.array(z.object({
+                       comuna: z.object({
+                         id: z.number(),
+                         nombre: z.string()
+                       })
+                     }))
+                   })
+                 }))
+               })),
                inspector_fiscal: z.object({
                  id: z.number(),
                  correo_electronico: z.string().nullable(),
@@ -684,9 +801,32 @@ export  async function etapasRoutes(app: FastifyInstance) {
           etapa_tipo: true,
           tipo_iniciativa: true,
           tipo_obra: true,
-          region: true,
-          provincia: true,
-          comuna: true,
+          // Include unified geographical data
+          etapas_geografia: {
+            include: {
+              region: {
+                select: {
+                  id: true,
+                  codigo: true,
+                  nombre: true,
+                  nombre_corto: true
+                }
+              },
+              provincia: {
+                select: {
+                  id: true,
+                  codigo: true,
+                  nombre: true
+                }
+              },
+              comuna: {
+                select: {
+                  id: true,
+                  nombre: true
+                }
+              }
+            }
+          },
           inspector_fiscal: {
             select: {
               id: true,
@@ -722,9 +862,32 @@ export  async function etapasRoutes(app: FastifyInstance) {
           etapa_tipo: true,
           tipo_iniciativa: true,
           tipo_obra: true,
-          region: true,
-          provincia: true,
-          comuna: true,
+          // Include unified geographical data
+          etapas_geografia: {
+            include: {
+              region: {
+                select: {
+                  id: true,
+                  codigo: true,
+                  nombre: true,
+                  nombre_corto: true
+                }
+              },
+              provincia: {
+                select: {
+                  id: true,
+                  codigo: true,
+                  nombre: true
+                }
+              },
+              comuna: {
+                select: {
+                  id: true,
+                  nombre: true
+                }
+              }
+            }
+          },
           inspector_fiscal: {
             select: {
               id: true,
@@ -765,7 +928,10 @@ export  async function etapasRoutes(app: FastifyInstance) {
         success: true,
         message: `Información completa del proyecto ${proyecto_id} obtenida exitosamente`,
         data: {
-          etapas_anteriores: todasLasEtapasAnteriores,
+          etapas_anteriores: todasLasEtapasAnteriores.map(etapa => ({
+            ...etapa,
+            etapas_regiones: transformGeographicalData(etapa.etapas_geografia)
+          })),
           siguiente_etapa: siguienteEtapa ? {
             ...siguienteEtapa,
             carpetas_transversales: siguienteEtapa.carpetas_transversales.map(carpeta => ({
@@ -786,6 +952,866 @@ export  async function etapasRoutes(app: FastifyInstance) {
       return {
         success: false,
         message: 'Error al obtener la información de la etapa y siguiente etapa',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // GET /etapas/orden - Obtener orden actual de etapas
+  server.get('/etapas/orden', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Obtener orden actual de etapas',
+      description: 'Retorna el orden actual de todas las etapas activas, ordenadas por su posición en el flujo. Útil para mostrar la jerarquía y secuencia de etapas en la interfaz de usuario.',
+      querystring: z.object({
+        proyecto_id: z.string().regex(/^\d+$/, 'ID del proyecto debe ser un número válido').transform(Number).optional()
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.array(z.object({
+            id: z.number(),
+            etapa_tipo_id: z.number(),
+            nombre: z.string(),
+            descripcion: z.string().nullable(),
+            color: z.string().nullable(),
+            orden_actual: z.number(),
+            fecha_creacion: z.date(),
+            activa: z.boolean()
+          }))
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { proyecto_id } = request.query;
+      
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const etapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              id: true,
+              nombre: true,
+              descripcion: true,
+              color: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      const etapasConOrden = etapas.map((etapa, index) => ({
+        id: etapa.id,
+        etapa_tipo_id: etapa.etapa_tipo_id,
+        nombre: etapa.etapa_tipo.nombre,
+        descripcion: etapa.etapa_tipo.descripcion,
+        color: etapa.etapa_tipo.color,
+        orden_actual: index + 1,
+        fecha_creacion: etapa.fecha_creacion,
+        activa: etapa.activa
+      }));
+
+      return {
+        success: true,
+        message: 'Orden de etapas obtenido exitosamente',
+        data: etapasConOrden
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al obtener el orden de las etapas',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // PUT /etapas/:id/mover - Mover etapa a nueva posición
+  server.put('/etapas/:id/mover', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Mover etapa a nueva posición',
+      description: 'Mueve una etapa específica a una nueva posición en el orden. Permite cambiar la jerarquía de las etapas moviendo una etapa hacia arriba o hacia abajo en la secuencia.',
+      params: etapaParamsSchema,
+      body: z.object({
+        nueva_posicion: z.number().int().min(1, 'Nueva posición debe ser mayor a 0'),
+        proyecto_id: z.number().int().min(1, 'ID del proyecto es requerido').optional()
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            id: z.number(),
+            posicion_anterior: z.number(),
+            nueva_posicion: z.number(),
+            etapas_reordenadas: z.array(z.object({
+              id: z.number(),
+              nombre: z.string(),
+              orden: z.number()
+            }))
+          })
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        400: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { nueva_posicion, proyecto_id } = request.body;
+    
+    try {
+      // Verificar que la etapa existe
+      const etapa = await prisma.etapas_registro.findUnique({
+        where: { id, activa: true },
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        }
+      });
+
+      if (!etapa) {
+        reply.status(404);
+        return {
+          success: false,
+          message: 'Etapa no encontrada'
+        };
+      }
+
+      // Obtener todas las etapas del proyecto (o todas si no se especifica proyecto)
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const todasLasEtapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      // Encontrar la posición actual de la etapa
+      const posicionActual = todasLasEtapas.findIndex(etapa => etapa.id === id) + 1;
+      
+      if (posicionActual === 0) {
+        reply.status(404);
+        return {
+          success: false,
+          message: 'Etapa no encontrada en la lista'
+        };
+      }
+
+      // Validar que la nueva posición es válida
+      if (nueva_posicion < 1 || nueva_posicion > todasLasEtapas.length) {
+        reply.status(400);
+        return {
+          success: false,
+          message: `Nueva posición debe estar entre 1 y ${todasLasEtapas.length}`
+        };
+      }
+
+      // Si la posición es la misma, no hacer nada
+      if (posicionActual === nueva_posicion) {
+        return {
+          success: true,
+          message: 'La etapa ya está en la posición especificada',
+          data: {
+            id,
+            posicion_anterior: posicionActual,
+            nueva_posicion,
+            etapas_reordenadas: todasLasEtapas.map((etapa, index) => ({
+              id: etapa.id,
+              nombre: etapa.etapa_tipo.nombre,
+              orden: index + 1
+            }))
+          }
+        };
+      }
+
+      // Reordenar las etapas
+      const etapasReordenadas = [...todasLasEtapas];
+      const etapaAMover = etapasReordenadas.splice(posicionActual - 1, 1)[0];
+      etapasReordenadas.splice(nueva_posicion - 1, 0, etapaAMover);
+
+      // Actualizar las fechas de creación para mantener el orden
+      for (let i = 0; i < etapasReordenadas.length; i++) {
+        const nuevaFecha = new Date();
+        nuevaFecha.setSeconds(nuevaFecha.getSeconds() + i); // Asegurar orden secuencial
+        
+        await prisma.etapas_registro.update({
+          where: { id: etapasReordenadas[i].id },
+          data: { fecha_creacion: nuevaFecha }
+        });
+      }
+
+      return {
+        success: true,
+        message: `Etapa "${etapa.etapa_tipo.nombre}" movida de posición ${posicionActual} a ${nueva_posicion}`,
+        data: {
+          id,
+          posicion_anterior: posicionActual,
+          nueva_posicion,
+          etapas_reordenadas: etapasReordenadas.map((etapa, index) => ({
+            id: etapa.id,
+            nombre: etapa.etapa_tipo.nombre,
+            orden: index + 1
+          }))
+        }
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al mover la etapa',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // PUT /etapas/reordenar - Reordenar múltiples etapas
+  server.put('/etapas/reordenar', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Reordenar múltiples etapas',
+      description: 'Reordena múltiples etapas a la vez especificando el nuevo orden. Permite reorganizar completamente la jerarquía de etapas de un proyecto.',
+      body: z.object({
+        proyecto_id: z.number().int().min(1, 'ID del proyecto es requerido').optional(),
+        etapas: z.array(z.object({
+          id: z.number().int().min(1, 'ID de etapa es requerido'),
+          nueva_posicion: z.number().int().min(1, 'Nueva posición es requerida')
+        })).min(1, 'Debe especificar al menos una etapa')
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            etapas_reordenadas: z.array(z.object({
+              id: z.number(),
+              nombre: z.string(),
+              orden: z.number()
+            })),
+            cambios_aplicados: z.number()
+          })
+        }),
+        400: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    const { proyecto_id, etapas } = request.body;
+    
+    try {
+      // Obtener todas las etapas del proyecto (o todas si no se especifica proyecto)
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const todasLasEtapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      // Validar que todas las etapas especificadas existen
+      const idsEtapas = etapas.map(e => e.id);
+      const etapasExistentes = todasLasEtapas.filter(etapa => idsEtapas.includes(etapa.id));
+      
+      if (etapasExistentes.length !== etapas.length) {
+        reply.status(400);
+        return {
+          success: false,
+          message: 'Algunas etapas especificadas no existen'
+        };
+      }
+
+      // Validar que las posiciones son válidas
+      const posicionesValidas = etapas.every(e => e.nueva_posicion >= 1 && e.nueva_posicion <= todasLasEtapas.length);
+      if (!posicionesValidas) {
+        reply.status(400);
+        return {
+          success: false,
+          message: `Las posiciones deben estar entre 1 y ${todasLasEtapas.length}`
+        };
+      }
+
+      // Crear un mapa de las nuevas posiciones
+      const mapaPosiciones = new Map();
+      etapas.forEach(etapa => {
+        mapaPosiciones.set(etapa.id, etapa.nueva_posicion);
+      });
+
+      // Reordenar las etapas según las nuevas posiciones
+      const etapasReordenadas = [...todasLasEtapas].sort((a, b) => {
+        const posA = mapaPosiciones.get(a.id) || 999;
+        const posB = mapaPosiciones.get(b.id) || 999;
+        return posA - posB;
+      });
+
+      // Actualizar las fechas de creación para mantener el nuevo orden
+      for (let i = 0; i < etapasReordenadas.length; i++) {
+        const nuevaFecha = new Date();
+        nuevaFecha.setSeconds(nuevaFecha.getSeconds() + i); // Asegurar orden secuencial
+        
+        await prisma.etapas_registro.update({
+          where: { id: etapasReordenadas[i].id },
+          data: { fecha_creacion: nuevaFecha }
+        });
+      }
+
+      return {
+        success: true,
+        message: `${etapas.length} etapas reordenadas exitosamente`,
+        data: {
+          etapas_reordenadas: etapasReordenadas.map((etapa, index) => ({
+            id: etapa.id,
+            nombre: etapa.etapa_tipo.nombre,
+            orden: index + 1
+          })),
+          cambios_aplicados: etapas.length
+        }
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al reordenar las etapas',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // POST /etapas/:id/subir - Subir etapa una posición
+  server.post('/etapas/:id/subir', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Subir etapa una posición',
+      description: 'Mueve una etapa hacia arriba una posición en el orden. Si la etapa ya está en la primera posición, no hace nada.',
+      params: etapaParamsSchema,
+      body: z.object({
+        proyecto_id: z.number().int().min(1, 'ID del proyecto es requerido').optional()
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            id: z.number(),
+            posicion_anterior: z.number(),
+            nueva_posicion: z.number(),
+            movida: z.boolean()
+          })
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { proyecto_id } = request.body;
+    
+    try {
+      // Obtener todas las etapas del proyecto (o todas si no se especifica proyecto)
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const todasLasEtapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      // Encontrar la posición actual de la etapa
+      const posicionActual = todasLasEtapas.findIndex(etapa => etapa.id === id) + 1;
+      
+      if (posicionActual === 0) {
+        reply.status(404);
+        return {
+          success: false,
+          message: 'Etapa no encontrada'
+        };
+      }
+
+      // Si ya está en la primera posición, no hacer nada
+      if (posicionActual === 1) {
+        return {
+          success: true,
+          message: 'La etapa ya está en la primera posición',
+          data: {
+            id,
+            posicion_anterior: posicionActual,
+            nueva_posicion: posicionActual,
+            movida: false
+          }
+        };
+      }
+
+      // Intercambiar con la etapa anterior
+      const etapaActual = todasLasEtapas[posicionActual - 1];
+      const etapaAnterior = todasLasEtapas[posicionActual - 2];
+
+      // Actualizar las fechas de creación para intercambiar posiciones
+      const fechaActual = etapaActual.fecha_creacion;
+      const fechaAnterior = etapaAnterior.fecha_creacion;
+
+      await prisma.etapas_registro.update({
+        where: { id: etapaActual.id },
+        data: { fecha_creacion: fechaAnterior }
+      });
+
+      await prisma.etapas_registro.update({
+        where: { id: etapaAnterior.id },
+        data: { fecha_creacion: fechaActual }
+      });
+
+      return {
+        success: true,
+        message: `Etapa "${etapaActual.etapa_tipo.nombre}" subida de posición ${posicionActual} a ${posicionActual - 1}`,
+        data: {
+          id,
+          posicion_anterior: posicionActual,
+          nueva_posicion: posicionActual - 1,
+          movida: true
+        }
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al subir la etapa',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // POST /etapas/:id/bajar - Bajar etapa una posición
+  server.post('/etapas/:id/bajar', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Bajar etapa una posición',
+      description: 'Mueve una etapa hacia abajo una posición en el orden. Si la etapa ya está en la última posición, no hace nada.',
+      params: etapaParamsSchema,
+      body: z.object({
+        proyecto_id: z.number().int().min(1, 'ID del proyecto es requerido').optional()
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            id: z.number(),
+            posicion_anterior: z.number(),
+            nueva_posicion: z.number(),
+            movida: z.boolean()
+          })
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { proyecto_id } = request.body;
+    
+    try {
+      // Obtener todas las etapas del proyecto (o todas si no se especifica proyecto)
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const todasLasEtapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      // Encontrar la posición actual de la etapa
+      const posicionActual = todasLasEtapas.findIndex(etapa => etapa.id === id) + 1;
+      
+      if (posicionActual === 0) {
+        reply.status(404);
+        return {
+          success: false,
+          message: 'Etapa no encontrada'
+        };
+      }
+
+      // Si ya está en la última posición, no hacer nada
+      if (posicionActual === todasLasEtapas.length) {
+        return {
+          success: true,
+          message: 'La etapa ya está en la última posición',
+          data: {
+            id,
+            posicion_anterior: posicionActual,
+            nueva_posicion: posicionActual,
+            movida: false
+          }
+        };
+      }
+
+      // Intercambiar con la etapa siguiente
+      const etapaActual = todasLasEtapas[posicionActual - 1];
+      const etapaSiguiente = todasLasEtapas[posicionActual];
+
+      // Actualizar las fechas de creación para intercambiar posiciones
+      const fechaActual = etapaActual.fecha_creacion;
+      const fechaSiguiente = etapaSiguiente.fecha_creacion;
+
+      await prisma.etapas_registro.update({
+        where: { id: etapaActual.id },
+        data: { fecha_creacion: fechaSiguiente }
+      });
+
+      await prisma.etapas_registro.update({
+        where: { id: etapaSiguiente.id },
+        data: { fecha_creacion: fechaActual }
+      });
+
+      return {
+        success: true,
+        message: `Etapa "${etapaActual.etapa_tipo.nombre}" bajada de posición ${posicionActual} a ${posicionActual + 1}`,
+        data: {
+          id,
+          posicion_anterior: posicionActual,
+          nueva_posicion: posicionActual + 1,
+          movida: true
+        }
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al bajar la etapa',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // POST /etapas/:id/ir-primero - Mover etapa al primer lugar
+  server.post('/etapas/:id/ir-primero', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Mover etapa al primer lugar',
+      description: 'Mueve una etapa específica al primer lugar en el orden, desplazando todas las demás etapas hacia abajo.',
+      params: etapaParamsSchema,
+      body: z.object({
+        proyecto_id: z.number().int().min(1, 'ID del proyecto es requerido').optional()
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            id: z.number(),
+            posicion_anterior: z.number(),
+            nueva_posicion: z.number(),
+            etapas_reordenadas: z.array(z.object({
+              id: z.number(),
+              nombre: z.string(),
+              orden: z.number()
+            }))
+          })
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { proyecto_id } = request.body;
+    
+    try {
+      // Obtener todas las etapas del proyecto (o todas si no se especifica proyecto)
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const todasLasEtapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      // Encontrar la posición actual de la etapa
+      const posicionActual = todasLasEtapas.findIndex(etapa => etapa.id === id) + 1;
+      
+      if (posicionActual === 0) {
+        reply.status(404);
+        return {
+          success: false,
+          message: 'Etapa no encontrada'
+        };
+      }
+
+      // Si ya está en la primera posición, no hacer nada
+      if (posicionActual === 1) {
+        return {
+          success: true,
+          message: 'La etapa ya está en la primera posición',
+          data: {
+            id,
+            posicion_anterior: posicionActual,
+            nueva_posicion: posicionActual,
+            etapas_reordenadas: todasLasEtapas.map((etapa, index) => ({
+              id: etapa.id,
+              nombre: etapa.etapa_tipo.nombre,
+              orden: index + 1
+            }))
+          }
+        };
+      }
+
+      // Mover la etapa al primer lugar
+      const etapaAMover = todasLasEtapas.splice(posicionActual - 1, 1)[0];
+      todasLasEtapas.unshift(etapaAMover);
+
+      // Actualizar las fechas de creación para mantener el nuevo orden
+      for (let i = 0; i < todasLasEtapas.length; i++) {
+        const nuevaFecha = new Date();
+        nuevaFecha.setSeconds(nuevaFecha.getSeconds() + i); // Asegurar orden secuencial
+        
+        await prisma.etapas_registro.update({
+          where: { id: todasLasEtapas[i].id },
+          data: { fecha_creacion: nuevaFecha }
+        });
+      }
+
+      return {
+        success: true,
+        message: `Etapa "${etapaAMover.etapa_tipo.nombre}" movida al primer lugar`,
+        data: {
+          id,
+          posicion_anterior: posicionActual,
+          nueva_posicion: 1,
+          etapas_reordenadas: todasLasEtapas.map((etapa, index) => ({
+            id: etapa.id,
+            nombre: etapa.etapa_tipo.nombre,
+            orden: index + 1
+          }))
+        }
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al mover la etapa al primer lugar',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      };
+    }
+  });
+
+  // POST /etapas/:id/ir-ultimo - Mover etapa al último lugar
+  server.post('/etapas/:id/ir-ultimo', {
+    schema: {
+      tags: ['Etapas'],
+      summary: 'Mover etapa al último lugar',
+      description: 'Mueve una etapa específica al último lugar en el orden, desplazando todas las demás etapas hacia arriba.',
+      params: etapaParamsSchema,
+      body: z.object({
+        proyecto_id: z.number().int().min(1, 'ID del proyecto es requerido').optional()
+      }),
+      response: {
+        200: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          data: z.object({
+            id: z.number(),
+            posicion_anterior: z.number(),
+            nueva_posicion: z.number(),
+            etapas_reordenadas: z.array(z.object({
+              id: z.number(),
+              nombre: z.string(),
+              orden: z.number()
+            }))
+          })
+        }),
+        404: z.object({
+          success: z.boolean(),
+          message: z.string()
+        }),
+        500: z.object({
+          success: z.boolean(),
+          message: z.string(),
+          error: z.string()
+        })
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { proyecto_id } = request.body;
+    
+    try {
+      // Obtener todas las etapas del proyecto (o todas si no se especifica proyecto)
+      let whereClause: any = { activa: true };
+      if (proyecto_id) {
+        whereClause.proyecto_id = proyecto_id;
+      }
+
+      const todasLasEtapas = await prisma.etapas_registro.findMany({
+        where: whereClause,
+        include: {
+          etapa_tipo: {
+            select: {
+              nombre: true
+            }
+          }
+        },
+        orderBy: { fecha_creacion: 'asc' }
+      });
+
+      // Encontrar la posición actual de la etapa
+      const posicionActual = todasLasEtapas.findIndex(etapa => etapa.id === id) + 1;
+      
+      if (posicionActual === 0) {
+        reply.status(404);
+        return {
+          success: false,
+          message: 'Etapa no encontrada'
+        };
+      }
+
+      // Si ya está en la última posición, no hacer nada
+      if (posicionActual === todasLasEtapas.length) {
+        return {
+          success: true,
+          message: 'La etapa ya está en la última posición',
+          data: {
+            id,
+            posicion_anterior: posicionActual,
+            nueva_posicion: posicionActual,
+            etapas_reordenadas: todasLasEtapas.map((etapa, index) => ({
+              id: etapa.id,
+              nombre: etapa.etapa_tipo.nombre,
+              orden: index + 1
+            }))
+          }
+        };
+      }
+
+      // Mover la etapa al último lugar
+      const etapaAMover = todasLasEtapas.splice(posicionActual - 1, 1)[0];
+      todasLasEtapas.push(etapaAMover);
+
+      // Actualizar las fechas de creación para mantener el nuevo orden
+      for (let i = 0; i < todasLasEtapas.length; i++) {
+        const nuevaFecha = new Date();
+        nuevaFecha.setSeconds(nuevaFecha.getSeconds() + i); // Asegurar orden secuencial
+        
+        await prisma.etapas_registro.update({
+          where: { id: todasLasEtapas[i].id },
+          data: { fecha_creacion: nuevaFecha }
+        });
+      }
+
+      return {
+        success: true,
+        message: `Etapa "${etapaAMover.etapa_tipo.nombre}" movida al último lugar`,
+        data: {
+          id,
+          posicion_anterior: posicionActual,
+          nueva_posicion: todasLasEtapas.length,
+          etapas_reordenadas: todasLasEtapas.map((etapa, index) => ({
+            id: etapa.id,
+            nombre: etapa.etapa_tipo.nombre,
+            orden: index + 1
+          }))
+        }
+      };
+    } catch (error) {
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Error al mover la etapa al último lugar',
         error: error instanceof Error ? error.message : 'Error desconocido'
       };
     }

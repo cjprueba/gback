@@ -194,7 +194,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             proyecto_id,
             etapa_tipo_id,
             s3_path: s3Path,
-            s3_bucket_name: process.env.MINIO_BUCKET,
+            s3_bucket_name: process.env.MINIO_BUCKET || 'gestor-files',
             s3_created: true,
             orden_visualizacion,
             max_tamaño_mb,
@@ -624,7 +624,7 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ['Carpetas'],
         summary: 'Obtener el contenido de una carpeta',
-        description: 'Obtiene el contenido completo de una carpeta específica, incluyendo sus subcarpetas y documentos. Permite configurar qué elementos incluir, límites de resultados y ordenamiento. También proporciona estadísticas detalladas sobre el contenido de la carpeta como total de elementos, tamaño total y tipos de archivo únicos.',
+        description: 'Obtiene el contenido completo de una carpeta específica, incluyendo sus subcarpetas y documentos. Permite configurar qué elementos incluir, límites de resultados y ordenamiento. También proporciona estadísticas detalladas sobre el contenido de la carpeta como total de elementos, tamaño total y tipos de archivo únicos. Si la carpeta pertenece a un proyecto padre, también incluye las carpetas de los proyectos hijos.',
         params: z.object({
           id: z.string()
         }),
@@ -814,10 +814,41 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
 
         // Obtener carpetas hijas si se solicita
         if (include_carpetas === 'true') {
+          // Verificar si esta carpeta pertenece a un proyecto padre
+          let projectIds = [carpeta.proyecto_id];
+          
+          if (carpeta.proyecto_id) {
+            const proyecto = await prisma.proyectos.findUnique({
+              where: { id: carpeta.proyecto_id },
+              select: { 
+                id: true, 
+                es_proyecto_padre: true,
+                proyecto_padre_id: true
+              }
+            });
+            
+            // Si es un proyecto padre, incluir también las carpetas de los proyectos hijos
+            if (proyecto && proyecto.es_proyecto_padre) {
+              const proyectosHijos = await prisma.proyectos.findMany({
+                where: { 
+                  proyecto_padre_id: carpeta.proyecto_id,
+                  eliminado: false
+                },
+                select: { id: true }
+              });
+              
+              projectIds = [carpeta.proyecto_id, ...proyectosHijos.map(p => p.id)];
+            }
+          }
+          
           const carpetasHijas = await prisma.carpetas.findMany({
             where: {
               carpeta_padre_id: parseInt(id),
-              activa: true
+              activa: true,
+              // Si la carpeta pertenece a un proyecto, incluir también carpetas de proyectos hijos
+              ...(carpeta.proyecto_id && {
+                proyecto_id: { in: projectIds }
+              })
             },
             include: {
               etapa_tipo: {

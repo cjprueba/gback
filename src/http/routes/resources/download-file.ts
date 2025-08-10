@@ -5,14 +5,14 @@ import { Client } from 'minio';
 
 // Reuse the existing MinIO client configuration
 const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT,
-  port: parseInt(process.env.MINIO_PORT),
+  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+  port: parseInt(process.env.MINIO_PORT || '9000'),
   useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_ACCESS_KEY,
-  secretKey: process.env.MINIO_SECRET_KEY
+  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
 });
 
-const BUCKET_NAME = process.env.MINIO_BUCKET;
+const BUCKET_NAME = process.env.MINIO_BUCKET || 'gestor-files';
 
 export async function downloadFile(app: FastifyInstance) {
   app

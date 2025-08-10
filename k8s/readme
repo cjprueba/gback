@@ -1,0 +1,3 @@
+Para desplegar
+oc start-build gestor-backend --from-dir=.. --follow
+oc rollout restart deployment/gestor-backend

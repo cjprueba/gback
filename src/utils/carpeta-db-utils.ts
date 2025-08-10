@@ -58,7 +58,7 @@ export class CarpetaDBUtils {
           carpeta_transversal_id: carpetaData.carpeta_transversal_id,
           concesion_id: carpetaData.concesion_id,
           s3_path: carpetaData.s3_path,
-          s3_bucket_name: carpetaData.s3_bucket_name || process.env.MINIO_BUCKET,
+          s3_bucket_name: carpetaData.s3_bucket_name || process.env.MINIO_BUCKET || 'gestor-files',
           s3_created: true,
           orden_visualizacion: carpetaData.orden_visualizacion || 0,
           max_tamaño_mb: carpetaData.max_tamaño_mb,
@@ -358,26 +358,72 @@ export class CarpetaDBUtils {
   }
 
   /**
-   * Gets all folders for a project
+   * Gets all folders for a project, including child projects if it's a parent project
    */
   static async getProjectFolders(projectId: number) {
     try {
-      const carpetas = await prisma.carpetas.findMany({
-        where: {
-          proyecto_id: projectId,
-          activa: true
-        } as any,
-        include: {
-          carpetas_hijas: {
-            where: { activa: true } as any
-          }
-        },
-        orderBy: {
-          orden_visualizacion: 'asc'
+      // First, check if this project is a parent project
+      const proyecto = await prisma.proyectos.findUnique({
+        where: { id: projectId },
+        select: { 
+          id: true, 
+          es_proyecto_padre: true,
+          proyecto_padre_id: true
         }
       });
 
-      return carpetas;
+      if (!proyecto) {
+        throw new Error(`Project with ID ${projectId} not found`);
+      }
+
+      // If it's a parent project, get folders from all child projects as well
+      if (proyecto.es_proyecto_padre) {
+        // Get child project IDs
+        const proyectosHijos = await prisma.proyectos.findMany({
+          where: { 
+            proyecto_padre_id: projectId,
+            eliminado: false
+          },
+          select: { id: true }
+        });
+
+        const projectIds = [projectId, ...proyectosHijos.map(p => p.id)];
+
+        const carpetas = await prisma.carpetas.findMany({
+          where: {
+            proyecto_id: { in: projectIds },
+            activa: true
+          } as any,
+          include: {
+            carpetas_hijas: {
+              where: { activa: true } as any
+            }
+          },
+          orderBy: {
+            orden_visualizacion: 'asc'
+          }
+        });
+
+        return carpetas;
+      } else {
+        // If it's not a parent project, get only its own folders
+        const carpetas = await prisma.carpetas.findMany({
+          where: {
+            proyecto_id: projectId,
+            activa: true
+          } as any,
+          include: {
+            carpetas_hijas: {
+              where: { activa: true } as any
+            }
+          },
+          orderBy: {
+            orden_visualizacion: 'asc'
+          }
+        });
+
+        return carpetas;
+      }
     } catch (error) {
       console.error('Error getting project folders:', error);
       throw error;

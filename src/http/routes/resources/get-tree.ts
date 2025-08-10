@@ -8,17 +8,17 @@ import { Client } from 'minio';
 
 // Initialize MinIO client
 const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT,
-  port: parseInt(process.env.MINIO_PORT),
+  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+  port: parseInt(process.env.MINIO_PORT || '9000'),
   useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_ACCESS_KEY,
-  secretKey: process.env.MINIO_SECRET_KEY
+  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
 });
 
 console.log("MINIO_ENDPOINT")
 console.log(process.env.MINIO_ENDPOINT)
 
-const BUCKET_NAME = process.env.MINIO_BUCKET;
+const BUCKET_NAME = process.env.MINIO_BUCKET || 'gestor-files';
 
 interface FileItem {
   name: string;

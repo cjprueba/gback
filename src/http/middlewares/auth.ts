@@ -16,27 +16,19 @@ export const auth = fastifyPlugin(async (app: FastifyInstance) => {
     };
     request.getUserMembership = async (slug: string) => {
       const userId = await request.getCurrentUserId();
-      const member = await prisma.member.findFirst({
+      const usuario = await prisma.usuarios.findFirst({
         where: {
-          userId,
-          organization: {
-            slug,
-          },
-        },
-        include: {
-          organization: true,
+          id: parseInt(userId),
+          activo: true,
         },
       });
 
-      if (!member) {
-        throw new UnauthorizedError('User is not a member of this organization');
+      if (!usuario) {
+        throw new UnauthorizedError('User not found or inactive');
       }
 
-      const { organization, ...membership } = member;
-
       return {
-        organization,
-        membership,
+        usuario,
       };
     };
   });

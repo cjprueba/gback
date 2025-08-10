@@ -2,7 +2,10 @@
   "name": "@app",
   "version": "1.0.0",
   "scripts": {
-    "dev": "npx tsx watch -r tsconfig-paths/register src/http/server.ts"
+    "dev": "npx tsx watch -r tsconfig-paths/register src/http/server.ts",
+    "start": "npx tsx -r tsconfig-paths/register src/http/server.ts",
+    "build": "npx tsc",
+    "postinstall": "npx prisma generate"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

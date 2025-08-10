@@ -66,6 +66,9 @@ import { documentosRoutes } from './routes/documentos/documentos';
 //busqueda
 import { busquedaRoutes } from './routes/busqueda/busqueda';
 
+//health
+import { healthRoute } from './routes/health/health';
+
 const app = fastify().withTypeProvider<ZodTypeProvider>();
 
 app.setSerializerCompiler(serializerCompiler);
@@ -131,6 +134,9 @@ app.register(proyectosRoutes);
 app.register(carpetasRoutes);
 app.register(documentosRoutes);
 app.register(busquedaRoutes);
+
+app.register(healthRoute);
+
 app.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
   console.log('HTTP server running!');
 });
