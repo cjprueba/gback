@@ -529,6 +529,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           }
         }
 
+        // Agregar información de si cada carpeta es la carpeta raíz del proyecto
+        for (const carpeta of carpetas) {
+          const esCarpetaRaiz = await esCarpetaRaizProyecto(carpeta.id);
+          (carpeta as any).es_carpeta_raiz = esCarpetaRaiz;
+        }
+
         // Construir respuesta
         const response: any = {
           carpetas,
@@ -782,6 +788,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                 color: true,
                 orden: true
               }
+            },
+            proyectos_carpeta_raiz: {
+              select: {
+                id: true,
+                nombre: true
+              }
             }
           }
         });
@@ -796,9 +808,15 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           });
         }
 
+        // Determinar si la carpeta principal es la carpeta raíz del proyecto
+        const esCarpetaRaiz = await esCarpetaRaizProyecto(parseInt(id));
+        
         // Inicializar respuesta
         const response: any = {
-          carpeta,
+          carpeta: {
+            ...carpeta,
+            es_carpeta_raiz: esCarpetaRaiz
+          },
           contenido: {
             carpetas: [],
             documentos: []
@@ -866,6 +884,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                   color: true,
                   orden: true
                 }
+              },
+              proyectos_carpeta_raiz: {
+                select: {
+                  id: true,
+                  nombre: true
+                }
               }
             },
             orderBy: {
@@ -886,10 +910,12 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
               }
             });
 
-
+            // Determinar si es la carpeta raíz del proyecto
+            const esCarpetaRaiz = await esCarpetaRaizProyecto(carpetaHija.id);
 
             (carpetaHija as any).total_documentos = totalDocs;
             (carpetaHija as any).total_carpetas_hijas = totalCarpetasHijas;
+            (carpetaHija as any).es_carpeta_raiz = esCarpetaRaiz;
           }
 
 
@@ -1454,6 +1480,34 @@ async function esSubcarpetaDe(carpetaId: number, carpetaPadreId: number): Promis
     return await esSubcarpetaDe(carpeta.carpeta_padre_id, carpetaPadreId);
   } catch (error) {
     console.error('Error verificando si es subcarpeta:', error);
+    return false;
+  }
+}
+
+// Función auxiliar para determinar si una carpeta es la carpeta raíz de un proyecto
+async function esCarpetaRaizProyecto(carpetaId: number): Promise<boolean> {
+  try {
+    const carpeta = await prisma.carpetas.findUnique({
+      where: { id: carpetaId },
+      select: { 
+        id: true,
+        proyecto_id: true
+      }
+    });
+
+    if (!carpeta || !carpeta.proyecto_id) {
+      return false;
+    }
+
+    // Verificar si esta carpeta es la carpeta raíz del proyecto
+    const proyecto = await prisma.proyectos.findUnique({
+      where: { id: carpeta.proyecto_id },
+      select: { carpeta_raiz_id: true }
+    });
+
+    return proyecto?.carpeta_raiz_id === carpetaId;
+  } catch (error) {
+    console.error('Error verificando si es carpeta raíz del proyecto:', error);
     return false;
   }
 }

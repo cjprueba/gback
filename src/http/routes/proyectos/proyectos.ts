@@ -377,8 +377,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .get('/proyectos', {
       schema: {
         tags: ['Proyectos'],
-        summary: 'Obtener lista de proyectos padre',
-        description: 'Retorna una lista paginada de todos los proyectos padre activos (no eliminados y que no son proyectos hijos) con información básica incluyendo el tipo de etapa más reciente, el creador y la carpeta raíz.',
+        summary: 'Obtener lista de proyectos',
+        description: 'Retorna una lista paginada de todos los proyectos activos (no eliminados) incluyendo información básica, el tipo de etapa más reciente, el creador y la carpeta raíz. El campo es_proyecto_padre indica si es un proyecto padre o hijo.',
         response: {
           200: z.object({
             success: z.boolean(),
@@ -388,6 +388,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               nombre: z.string(),
               created_at: z.date(),
               carpeta_raiz_id: z.number().nullable(),
+              es_proyecto_padre: z.boolean(),
+              proyecto_padre_id: z.number().nullable(),
               
               // Solo etapa_tipo
               etapas_registro: z.array(z.object({
@@ -410,15 +412,16 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     }, async () => {
       const proyectos = await prisma.proyectos.findMany({
         where: {
-          eliminado: false,
-          // Solo mostrar proyectos que NO son hijos (proyecto_padre_id es null)
-          proyecto_padre_id: null
+          eliminado: false
+          // Removido el filtro proyecto_padre_id: null para mostrar todos los proyectos
         },
         select: {
           id: true,
           nombre: true,
           created_at: true,
           carpeta_raiz_id: true,
+          es_proyecto_padre: true,
+          proyecto_padre_id: true,
           etapas_registro: {
             take: 1,
             orderBy: {
@@ -453,8 +456,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     .get('/proyectos/:id', {
       schema: {
         tags: ['Proyectos'],
-        summary: 'Obtener proyecto padre por ID',
-        description: 'Retorna la información completa de un proyecto padre específico activo (no eliminado y que no es un proyecto hijo) incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador.',
+        summary: 'Obtener proyecto por ID',
+        description: 'Retorna la información completa de un proyecto específico activo (no eliminado) incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador. El campo es_proyecto_padre indica si es un proyecto padre o hijo.',
         params: z.object({
           id: z.string().transform((val) => parseInt(val, 10))
         }),
@@ -468,6 +471,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
               carpeta_inicial: z.any().nullable(),
               carpeta_raiz_id: z.number().nullable(),
               created_at: z.date(),
+              es_proyecto_padre: z.boolean(),
+              proyecto_padre_id: z.number().nullable(),
               
               // Relaciones
               etapas_registro: z.array(z.object({
@@ -557,9 +562,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       const proyecto = await prisma.proyectos.findUnique({
         where: { 
           id,
-          eliminado: false,
-          // Solo permitir acceso a proyectos que NO son hijos
-          proyecto_padre_id: null
+          eliminado: false
         },
         select: {
           id: true,
@@ -567,6 +570,8 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           carpeta_inicial: true,
           carpeta_raiz_id: true,
           created_at: true,
+          es_proyecto_padre: true,
+          proyecto_padre_id: true,
           etapas_registro: {
             orderBy: {
               fecha_creacion: 'desc'
@@ -633,7 +638,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
       if (!proyecto) {
         return reply.status(404).send({
           success: false,
-          message: 'Proyecto padre no encontrado, ha sido eliminado o es un proyecto hijo'
+          message: 'Proyecto no encontrado o ha sido eliminado'
         });
       }
 
