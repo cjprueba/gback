@@ -1010,10 +1010,16 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
           etapa_tipo_id: z.number().int().min(1, 'ID de tipo de etapa es requerido'),
           tipo_iniciativa_id: z.number().int().min(1).optional(),
           tipo_obra_id: z.number().int().min(1).optional(),
-          // Multiple regions, provinces, and communes
-          regiones: z.array(z.number().int().min(1)).optional(),
-          provincias: z.array(z.number().int().min(1)).optional(),
-          comunas: z.array(z.number().int().min(1)).optional(),
+          // Nested geographical structure
+          regiones: z.array(z.object({
+            id: z.number(),
+            provincias: z.array(z.object({
+              id: z.number(),
+              comunas: z.array(z.object({
+                id: z.number()
+              }))
+            }))
+          })).optional(),
           volumen: z.string().optional(),
           presupuesto_oficial: z.string().optional(),
           valor_referencia: z.string().max(255).optional(),
@@ -1064,9 +1070,7 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
         // Verificar que el proyecto existe y NO es un proyecto hijo
         const proyecto = await prisma.proyectos.findUnique({
           where: { 
-            id,
-            // Solo permitir cambiar etapa en proyectos que NO son hijos
-            proyecto_padre_id: null
+            id
           },
           include: {
             etapas_registro: {
@@ -1077,13 +1081,9 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             }
           }
         });
+
+        console.log('proyecto', proyecto);
         
-        if (!proyecto) {
-          return reply.status(404).send({
-            success: false,
-            message: 'Proyecto padre no encontrado o es un proyecto hijo'
-          });
-        }
 
         // Verificar que el tipo de etapa existe
         const etapaTipo = await prisma.etapas_tipo.findUnique({
@@ -1165,13 +1165,11 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
         });
 
         // Crear relaciones geográficas unificadas si se proporcionan
-        const geographicalData = [];
-        
-        // Crear relaciones geográficas unificadas basadas en comunas
-        if (body.comunas && body.comunas.length > 0) {
+        if (body.regiones && body.regiones.length > 0) {
+          const comunaIds = extractComunaIdsFromNestedStructure(body.regiones);
           const geographicalData = [];
-          
-          for (const comunaId of body.comunas) {
+
+          for (const comunaId of comunaIds) {
             // Obtener la información completa de la comuna para obtener su provincia y región
             const comuna = await prisma.comunas.findUnique({
               where: { id: comunaId },
@@ -1183,20 +1181,21 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 }
               }
             });
-            
+
             if (comuna) {
               geographicalData.push({
                 etapa_registro_id: nuevaEtapa.id,
                 region_id: comuna.provincia.region.id,
                 provincia_id: comuna.provincia.id,
-                comuna_id: comuna.id
+                comuna_id: comuna.id,
               });
             }
           }
-          
+
           if (geographicalData.length > 0) {
             await prisma.etapas_geografia.createMany({
-              data: geographicalData
+              data: geographicalData,
+              skipDuplicates: true,
             });
           }
         }

@@ -50,53 +50,39 @@ function createAccount(app) {
                     tags: ['Auth'],
                     summary: 'Create a new account',
                     body: zod_1.default.object({
-                        name: zod_1.default.string(),
-                        email: zod_1.default.string().email(),
+                        nombre_completo: zod_1.default.string(),
+                        correo_electronico: zod_1.default.string().email(),
                         password: zod_1.default.string().min(6),
+                        perfil_id: zod_1.default.number().int().min(1),
                     }),
                 },
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var _a, name, email, password, userWithSameEmail, _b, domain, autoJoinOrganization, passwordHash;
-                return __generator(this, function (_c) {
-                    switch (_c.label) {
+                var _a, nombre_completo, correo_electronico, password, perfil_id, userWithSameEmail, passwordHash;
+                return __generator(this, function (_b) {
+                    switch (_b.label) {
                         case 0:
-                            _a = request.body, name = _a.name, email = _a.email, password = _a.password;
-                            return [4 /*yield*/, prisma_1.prisma.user.findUnique({
-                                    where: { email: email },
+                            _a = request.body, nombre_completo = _a.nombre_completo, correo_electronico = _a.correo_electronico, password = _a.password, perfil_id = _a.perfil_id;
+                            return [4 /*yield*/, prisma_1.prisma.usuarios.findUnique({
+                                    where: { correo_electronico: correo_electronico },
                                 })];
                         case 1:
-                            userWithSameEmail = _c.sent();
+                            userWithSameEmail = _b.sent();
                             if (userWithSameEmail) {
                                 throw new bad_request_error_1.BadRequestError('User already exists');
                             }
-                            _b = email.split('@'), domain = _b[1];
-                            return [4 /*yield*/, prisma_1.prisma.organization.findFirst({
-                                    where: {
-                                        domain: domain,
-                                        shouldAttachUsersByDomain: true,
-                                    },
-                                })];
-                        case 2:
-                            autoJoinOrganization = _c.sent();
                             return [4 /*yield*/, (0, bcryptjs_1.hash)(password, 10)];
-                        case 3:
-                            passwordHash = _c.sent();
-                            return [4 /*yield*/, prisma_1.prisma.user.create({
+                        case 2:
+                            passwordHash = _b.sent();
+                            return [4 /*yield*/, prisma_1.prisma.usuarios.create({
                                     data: {
-                                        name: name,
-                                        email: email,
-                                        passwordHash: passwordHash,
-                                        member_on: autoJoinOrganization
-                                            ? {
-                                                create: {
-                                                    organizationId: autoJoinOrganization.id,
-                                                },
-                                            }
-                                            : undefined,
+                                        nombre_completo: nombre_completo,
+                                        correo_electronico: correo_electronico,
+                                        perfil_id: perfil_id,
+                                        activo: true,
                                     },
                                 })];
-                        case 4:
-                            _c.sent();
+                        case 3:
+                            _b.sent();
                             return [2 /*return*/, reply.status(201).send({ message: 'Account created' })];
                     }
                 });

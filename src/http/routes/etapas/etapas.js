@@ -59,6 +59,40 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.etapasRoutes = etapasRoutes;
 var zod_1 = require("zod");
 var prisma_1 = require("@/lib/prisma");
+// Helper function to transform flat geographical data into deeply nested hierarchical structure
+function transformGeographicalData(etapasGeografia) {
+    // Create a map of regions with their provinces and communes
+    var regionsMap = new Map();
+    // Process all geographical data from the unified table
+    // Now each record represents a specific commune with its complete hierarchy
+    etapasGeografia.forEach(function (etapaGeo) {
+        var region = etapaGeo.region, provincia = etapaGeo.provincia, comuna = etapaGeo.comuna;
+        // Ensure we have all the geographical data
+        if (region && provincia && comuna) {
+            // Add region if not exists
+            if (!regionsMap.has(region.id)) {
+                regionsMap.set(region.id, __assign(__assign({}, region), { etapas_provincias: [] }));
+            }
+            var regionData = regionsMap.get(region.id);
+            // Add province if not exists
+            var provinciaData = regionData.etapas_provincias.find(function (p) { return p.provincia.id === provincia.id; });
+            if (!provinciaData) {
+                provinciaData = {
+                    provincia: __assign(__assign({}, provincia), { etapas_comunas: [] })
+                };
+                regionData.etapas_provincias.push(provinciaData);
+            }
+            // Add comuna if not exists
+            if (!provinciaData.provincia.etapas_comunas.find(function (c) { return c.comuna.id === comuna.id; })) {
+                provinciaData.provincia.etapas_comunas.push({
+                    comuna: comuna
+                });
+            }
+        }
+    });
+    // Convert map to array
+    return Array.from(regionsMap.values());
+}
 // Esquema Zod para crear etapa
 var createEtapaSchema = zod_1.default.object({
     etapa_tipo_id: zod_1.default.number().int().min(1, 'ID de tipo de etapa es requerido'),
@@ -148,20 +182,28 @@ function etapasRoutes(app) {
                                     id: zod_1.default.number(),
                                     nombre: zod_1.default.string()
                                 }).nullable(),
-                                region: zod_1.default.object({
+                                etapas_regiones: zod_1.default.array(zod_1.default.object({
                                     id: zod_1.default.number(),
+                                    codigo: zod_1.default.string(),
                                     nombre: zod_1.default.string(),
-                                    codigo: zod_1.default.string()
-                                }).nullable(),
-                                provincia: zod_1.default.object({
-                                    id: zod_1.default.number(),
-                                    nombre: zod_1.default.string(),
-                                    codigo: zod_1.default.string()
-                                }).nullable(),
-                                comuna: zod_1.default.object({
-                                    id: zod_1.default.number(),
-                                    nombre: zod_1.default.string()
-                                }).nullable(),
+                                    nombre_corto: zod_1.default.string().nullable(),
+                                    etapas_provincias: zod_1.default.array(zod_1.default.object({
+                                        provincia: zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            codigo: zod_1.default.string(),
+                                            nombre: zod_1.default.string(),
+                                            region_id: zod_1.default.number()
+                                        }),
+                                        etapas_comunas: zod_1.default.array(zod_1.default.object({
+                                            comuna: zod_1.default.object({
+                                                id: zod_1.default.number(),
+                                                nombre: zod_1.default.string(),
+                                                provincia_id: zod_1.default.number(),
+                                                region_id: zod_1.default.number()
+                                            })
+                                        }))
+                                    }))
+                                })).nullable(),
                                 inspector_fiscal: zod_1.default.object({
                                     id: zod_1.default.number(),
                                     correo_electronico: zod_1.default.string().nullable(),
@@ -193,9 +235,13 @@ function etapasRoutes(app) {
                                         etapa_tipo: true,
                                         tipo_iniciativa: true,
                                         tipo_obra: true,
-                                        region: true,
-                                        provincia: true,
-                                        comuna: true,
+                                        etapas_geografia: {
+                                            include: {
+                                                region: true,
+                                                provincia: true,
+                                                comuna: true
+                                            }
+                                        },
                                         inspector_fiscal: {
                                             select: {
                                                 id: true,
@@ -218,7 +264,7 @@ function etapasRoutes(app) {
                             return [2 /*return*/, {
                                     success: true,
                                     message: 'Lista de etapas obtenida exitosamente',
-                                    data: etapas
+                                    data: etapas.map(function (etapa) { return (__assign(__assign({}, etapa), { etapas_regiones: transformGeographicalData(etapa.etapas_geografia) })); })
                                 }];
                         case 2:
                             error_1 = _a.sent();
@@ -279,20 +325,25 @@ function etapasRoutes(app) {
                                     id: zod_1.default.number(),
                                     nombre: zod_1.default.string()
                                 }).nullable(),
-                                region: zod_1.default.object({
+                                etapas_regiones: zod_1.default.array(zod_1.default.object({
                                     id: zod_1.default.number(),
+                                    codigo: zod_1.default.string(),
                                     nombre: zod_1.default.string(),
-                                    codigo: zod_1.default.string()
-                                }).nullable(),
-                                provincia: zod_1.default.object({
-                                    id: zod_1.default.number(),
-                                    nombre: zod_1.default.string(),
-                                    codigo: zod_1.default.string()
-                                }).nullable(),
-                                comuna: zod_1.default.object({
-                                    id: zod_1.default.number(),
-                                    nombre: zod_1.default.string(),
-                                }).nullable(),
+                                    nombre_corto: zod_1.default.string().nullable(),
+                                    etapas_provincias: zod_1.default.array(zod_1.default.object({
+                                        provincia: zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            codigo: zod_1.default.string(),
+                                            nombre: zod_1.default.string(),
+                                            etapas_comunas: zod_1.default.array(zod_1.default.object({
+                                                comuna: zod_1.default.object({
+                                                    id: zod_1.default.number(),
+                                                    nombre: zod_1.default.string()
+                                                })
+                                            }))
+                                        })
+                                    })),
+                                })).nullable(),
                                 inspector_fiscal: zod_1.default.object({
                                     id: zod_1.default.number(),
                                     correo_electronico: zod_1.default.string().nullable(),
@@ -317,23 +368,28 @@ function etapasRoutes(app) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var id, etapa, error_2;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
+                var id, etapa, etapasRegiones, region_id, provincia_id, comuna_id, firstGeo, error_2;
+                var _a, _b, _c;
+                return __generator(this, function (_d) {
+                    switch (_d.label) {
                         case 0:
                             id = request.params.id;
-                            _a.label = 1;
+                            _d.label = 1;
                         case 1:
-                            _a.trys.push([1, 3, , 4]);
+                            _d.trys.push([1, 3, , 4]);
                             return [4 /*yield*/, prisma_1.prisma.etapas_registro.findUnique({
                                     where: { id: id, activa: true },
                                     include: {
                                         etapa_tipo: true,
                                         tipo_iniciativa: true,
                                         tipo_obra: true,
-                                        region: true,
-                                        provincia: true,
-                                        comuna: true,
+                                        etapas_geografia: {
+                                            include: {
+                                                region: true,
+                                                provincia: true,
+                                                comuna: true
+                                            }
+                                        },
                                         inspector_fiscal: {
                                             select: {
                                                 id: true,
@@ -351,7 +407,7 @@ function etapasRoutes(app) {
                                     }
                                 })];
                         case 2:
-                            etapa = _a.sent();
+                            etapa = _d.sent();
                             if (!etapa) {
                                 reply.status(404);
                                 return [2 /*return*/, {
@@ -359,13 +415,53 @@ function etapasRoutes(app) {
                                         message: 'Etapa no encontrada'
                                     }];
                             }
+                            etapasRegiones = null;
+                            region_id = null;
+                            provincia_id = null;
+                            comuna_id = null;
+                            if (etapa.etapas_geografia && etapa.etapas_geografia.length > 0) {
+                                etapasRegiones = transformGeographicalData(etapa.etapas_geografia);
+                                firstGeo = etapa.etapas_geografia[0];
+                                region_id = ((_a = firstGeo.region) === null || _a === void 0 ? void 0 : _a.id) || null;
+                                provincia_id = ((_b = firstGeo.provincia) === null || _b === void 0 ? void 0 : _b.id) || null;
+                                comuna_id = ((_c = firstGeo.comuna) === null || _c === void 0 ? void 0 : _c.id) || null;
+                            }
                             return [2 /*return*/, {
                                     success: true,
                                     message: "Detalle de etapa ".concat(id, " obtenido exitosamente"),
-                                    data: etapa
+                                    data: {
+                                        id: etapa.id,
+                                        etapa_tipo_id: etapa.etapa_tipo_id,
+                                        tipo_iniciativa_id: etapa.tipo_iniciativa_id,
+                                        tipo_obra_id: etapa.tipo_obra_id,
+                                        region_id: region_id,
+                                        provincia_id: provincia_id,
+                                        comuna_id: comuna_id,
+                                        volumen: etapa.volumen,
+                                        presupuesto_oficial: etapa.presupuesto_oficial,
+                                        valor_referencia: etapa.valor_referencia,
+                                        fecha_llamado_licitacion: etapa.fecha_llamado_licitacion,
+                                        fecha_recepcion_ofertas_tecnicas: etapa.fecha_recepcion_ofertas_tecnicas,
+                                        fecha_apertura_ofertas_economicas: etapa.fecha_apertura_ofertas_economicas,
+                                        fecha_inicio_concesion: etapa.fecha_inicio_concesion,
+                                        plazo_total_concesion: etapa.plazo_total_concesion,
+                                        decreto_adjudicacion: etapa.decreto_adjudicacion,
+                                        sociedad_concesionaria: etapa.sociedad_concesionaria,
+                                        inspector_fiscal_id: etapa.inspector_fiscal_id,
+                                        usuario_creador: etapa.usuario_creador,
+                                        fecha_creacion: etapa.fecha_creacion,
+                                        fecha_actualizacion: etapa.fecha_actualizacion,
+                                        activa: etapa.activa,
+                                        etapa_tipo: etapa.etapa_tipo,
+                                        tipo_iniciativa: etapa.tipo_iniciativa,
+                                        tipo_obra: etapa.tipo_obra,
+                                        etapas_regiones: etapasRegiones,
+                                        inspector_fiscal: etapa.inspector_fiscal,
+                                        usuario_creador_rel: etapa.usuario_creador_rel
+                                    }
                                 }];
                         case 3:
-                            error_2 = _a.sent();
+                            error_2 = _d.sent();
                             reply.status(500);
                             return [2 /*return*/, {
                                     success: false,
@@ -674,9 +770,6 @@ function etapasRoutes(app) {
                                     etapa_tipo_id: zod_1.default.number(),
                                     tipo_iniciativa_id: zod_1.default.number().nullable(),
                                     tipo_obra_id: zod_1.default.number().nullable(),
-                                    region_id: zod_1.default.number().nullable(),
-                                    provincia_id: zod_1.default.number().nullable(),
-                                    comuna_id: zod_1.default.number().nullable(),
                                     volumen: zod_1.default.string().nullable(),
                                     presupuesto_oficial: zod_1.default.string().nullable(),
                                     valor_referencia: zod_1.default.string().nullable(),
@@ -707,20 +800,26 @@ function etapasRoutes(app) {
                                         id: zod_1.default.number(),
                                         nombre: zod_1.default.string()
                                     }).nullable(),
-                                    region: zod_1.default.object({
+                                    // Deeply nested hierarchical geographical data
+                                    etapas_regiones: zod_1.default.array(zod_1.default.object({
                                         id: zod_1.default.number(),
+                                        codigo: zod_1.default.string(),
                                         nombre: zod_1.default.string(),
-                                        codigo: zod_1.default.string()
-                                    }).nullable(),
-                                    provincia: zod_1.default.object({
-                                        id: zod_1.default.number(),
-                                        nombre: zod_1.default.string(),
-                                        codigo: zod_1.default.string()
-                                    }).nullable(),
-                                    comuna: zod_1.default.object({
-                                        id: zod_1.default.number(),
-                                        nombre: zod_1.default.string()
-                                    }).nullable(),
+                                        nombre_corto: zod_1.default.string().nullable(),
+                                        etapas_provincias: zod_1.default.array(zod_1.default.object({
+                                            provincia: zod_1.default.object({
+                                                id: zod_1.default.number(),
+                                                codigo: zod_1.default.string(),
+                                                nombre: zod_1.default.string(),
+                                                etapas_comunas: zod_1.default.array(zod_1.default.object({
+                                                    comuna: zod_1.default.object({
+                                                        id: zod_1.default.number(),
+                                                        nombre: zod_1.default.string()
+                                                    })
+                                                }))
+                                            })
+                                        }))
+                                    })),
                                     inspector_fiscal: zod_1.default.object({
                                         id: zod_1.default.number(),
                                         correo_electronico: zod_1.default.string().nullable(),
@@ -761,9 +860,32 @@ function etapasRoutes(app) {
                                         etapa_tipo: true,
                                         tipo_iniciativa: true,
                                         tipo_obra: true,
-                                        region: true,
-                                        provincia: true,
-                                        comuna: true,
+                                        // Include unified geographical data
+                                        etapas_geografia: {
+                                            include: {
+                                                region: {
+                                                    select: {
+                                                        id: true,
+                                                        codigo: true,
+                                                        nombre: true,
+                                                        nombre_corto: true
+                                                    }
+                                                },
+                                                provincia: {
+                                                    select: {
+                                                        id: true,
+                                                        codigo: true,
+                                                        nombre: true
+                                                    }
+                                                },
+                                                comuna: {
+                                                    select: {
+                                                        id: true,
+                                                        nombre: true
+                                                    }
+                                                }
+                                            }
+                                        },
                                         inspector_fiscal: {
                                             select: {
                                                 id: true,
@@ -798,9 +920,32 @@ function etapasRoutes(app) {
                                         etapa_tipo: true,
                                         tipo_iniciativa: true,
                                         tipo_obra: true,
-                                        region: true,
-                                        provincia: true,
-                                        comuna: true,
+                                        // Include unified geographical data
+                                        etapas_geografia: {
+                                            include: {
+                                                region: {
+                                                    select: {
+                                                        id: true,
+                                                        codigo: true,
+                                                        nombre: true,
+                                                        nombre_corto: true
+                                                    }
+                                                },
+                                                provincia: {
+                                                    select: {
+                                                        id: true,
+                                                        codigo: true,
+                                                        nombre: true
+                                                    }
+                                                },
+                                                comuna: {
+                                                    select: {
+                                                        id: true,
+                                                        nombre: true
+                                                    }
+                                                }
+                                            }
+                                        },
                                         inspector_fiscal: {
                                             select: {
                                                 id: true,
@@ -839,7 +984,7 @@ function etapasRoutes(app) {
                                     success: true,
                                     message: "Informaci\u00F3n completa del proyecto ".concat(proyecto_id, " obtenida exitosamente"),
                                     data: {
-                                        etapas_anteriores: todasLasEtapasAnteriores,
+                                        etapas_anteriores: todasLasEtapasAnteriores.map(function (etapa) { return (__assign(__assign({}, etapa), { etapas_regiones: transformGeographicalData(etapa.etapas_geografia) })); }),
                                         siguiente_etapa: siguienteEtapa ? __assign(__assign({}, siguienteEtapa), { carpetas_transversales: siguienteEtapa.carpetas_transversales.map(function (carpeta) { return ({
                                                 id: carpeta.id,
                                                 nombre: carpeta.nombre,

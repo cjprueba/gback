@@ -56,10 +56,9 @@ function getProfile(app) {
                     response: {
                         200: zod_1.default.object({
                             user: zod_1.default.object({
-                                id: zod_1.default.string().uuid(),
-                                name: zod_1.default.string().nullable(),
-                                email: zod_1.default.string(),
-                                avatarUrl: zod_1.default.string().nullable(),
+                                id: zod_1.default.number(),
+                                nombre_completo: zod_1.default.string().nullable(),
+                                correo_electronico: zod_1.default.string().nullable(),
                             }),
                         }),
                     },
@@ -71,15 +70,14 @@ function getProfile(app) {
                         case 0: return [4 /*yield*/, request.getCurrentUserId()];
                         case 1:
                             userId = _a.sent();
-                            return [4 /*yield*/, prisma_1.prisma.user.findUnique({
+                            return [4 /*yield*/, prisma_1.prisma.usuarios.findUnique({
                                     select: {
                                         id: true,
-                                        name: true,
-                                        email: true,
-                                        avatarUrl: true,
+                                        nombre_completo: true,
+                                        correo_electronico: true,
                                     },
                                     where: {
-                                        id: userId,
+                                        id: parseInt(userId),
                                     },
                                 })];
                         case 2:

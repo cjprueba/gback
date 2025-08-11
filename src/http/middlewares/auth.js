@@ -35,17 +35,6 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.auth = void 0;
 var unauthorized_error_1 = require("../routes/_errors/unauthorized-error");
@@ -74,32 +63,25 @@ exports.auth = (0, fastify_plugin_1.fastifyPlugin)(function (app) { return __awa
                     });
                 }); };
                 request.getUserMembership = function (slug) { return __awaiter(void 0, void 0, void 0, function () {
-                    var userId, member, organization, membership;
+                    var userId, usuario;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
                             case 0: return [4 /*yield*/, request.getCurrentUserId()];
                             case 1:
                                 userId = _a.sent();
-                                return [4 /*yield*/, prisma_1.prisma.member.findFirst({
+                                return [4 /*yield*/, prisma_1.prisma.usuarios.findFirst({
                                         where: {
-                                            userId: userId,
-                                            organization: {
-                                                slug: slug,
-                                            },
-                                        },
-                                        include: {
-                                            organization: true,
+                                            id: parseInt(userId),
+                                            activo: true,
                                         },
                                     })];
                             case 2:
-                                member = _a.sent();
-                                if (!member) {
-                                    throw new unauthorized_error_1.UnauthorizedError('User is not a member of this organization');
+                                usuario = _a.sent();
+                                if (!usuario) {
+                                    throw new unauthorized_error_1.UnauthorizedError('User not found or inactive');
                                 }
-                                organization = member.organization, membership = __rest(member, ["organization"]);
                                 return [2 /*return*/, {
-                                        organization: organization,
-                                        membership: membership,
+                                        usuario: usuario,
                                     }];
                         }
                     });

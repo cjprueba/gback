@@ -50,6 +50,15 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.carpetasRoutes = carpetasRoutes;
 var zod_1 = require("zod");
@@ -364,11 +373,11 @@ function carpetasRoutes(fastify) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var _a, proyecto_id, carpeta_padre_id, usuario_creador, activa, nombre, descripcion, permisos_lectura, permisos_escritura, tipo_archivo, _b, page, _c, limit, _d, sort_by, _e, sort_order, fecha_desde, fecha_hasta, max_tamaño_min, max_tamaño_max, include_hijos, include_padre, include_proyecto, include_creador, include_documentos, where, filters, orderBy, pageNum, limitNum, skip, include, total, carpetas, _i, carpetas_1, carpeta, totalDocs, response, error_2;
-                return __generator(this, function (_f) {
-                    switch (_f.label) {
+                var _a, proyecto_id, carpeta_padre_id, usuario_creador, activa, nombre, descripcion, permisos_lectura, permisos_escritura, tipo_archivo, _b, page, _c, limit, _d, sort_by, _e, sort_order, fecha_desde, fecha_hasta, max_tamaño_min, max_tamaño_max, include_hijos, include_padre, include_proyecto, include_creador, include_documentos, where, filters, orderBy, pageNum, limitNum, skip, include, total, carpetas, _i, carpetas_1, carpeta, totalDocs, _f, carpetas_2, carpeta, esCarpetaRaiz, response, error_2;
+                return __generator(this, function (_g) {
+                    switch (_g.label) {
                         case 0:
-                            _f.trys.push([0, 7, , 8]);
+                            _g.trys.push([0, 11, , 12]);
                             _a = request.query, proyecto_id = _a.proyecto_id, carpeta_padre_id = _a.carpeta_padre_id, usuario_creador = _a.usuario_creador, activa = _a.activa, nombre = _a.nombre, descripcion = _a.descripcion, permisos_lectura = _a.permisos_lectura, permisos_escritura = _a.permisos_escritura, tipo_archivo = _a.tipo_archivo, _b = _a.page, page = _b === void 0 ? '1' : _b, _c = _a.limit, limit = _c === void 0 ? '20' : _c, _d = _a.sort_by, sort_by = _d === void 0 ? 'orden_visualizacion' : _d, _e = _a.sort_order, sort_order = _e === void 0 ? 'asc' : _e, fecha_desde = _a.fecha_desde, fecha_hasta = _a.fecha_hasta, max_tamaño_min = _a.max_tamaño_min, max_tamaño_max = _a.max_tamaño_max, include_hijos = _a.include_hijos, include_padre = _a.include_padre, include_proyecto = _a.include_proyecto, include_creador = _a.include_creador, include_documentos = _a.include_documentos;
                             where = {};
                             filters = {};
@@ -499,7 +508,7 @@ function carpetasRoutes(fastify) {
                             }
                             return [4 /*yield*/, prisma_1.prisma.carpetas.count({ where: where })];
                         case 1:
-                            total = _f.sent();
+                            total = _g.sent();
                             return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
                                     where: where,
                                     include: include,
@@ -508,10 +517,10 @@ function carpetasRoutes(fastify) {
                                     take: limitNum
                                 })];
                         case 2:
-                            carpetas = _f.sent();
+                            carpetas = _g.sent();
                             if (!(include_documentos === 'true')) return [3 /*break*/, 6];
                             _i = 0, carpetas_1 = carpetas;
-                            _f.label = 3;
+                            _g.label = 3;
                         case 3:
                             if (!(_i < carpetas_1.length)) return [3 /*break*/, 6];
                             carpeta = carpetas_1[_i];
@@ -522,13 +531,27 @@ function carpetasRoutes(fastify) {
                                     }
                                 })];
                         case 4:
-                            totalDocs = _f.sent();
+                            totalDocs = _g.sent();
                             carpeta.total_documentos = totalDocs;
-                            _f.label = 5;
+                            _g.label = 5;
                         case 5:
                             _i++;
                             return [3 /*break*/, 3];
                         case 6:
+                            _f = 0, carpetas_2 = carpetas;
+                            _g.label = 7;
+                        case 7:
+                            if (!(_f < carpetas_2.length)) return [3 /*break*/, 10];
+                            carpeta = carpetas_2[_f];
+                            return [4 /*yield*/, esCarpetaRaizProyecto(carpeta.id)];
+                        case 8:
+                            esCarpetaRaiz = _g.sent();
+                            carpeta.es_carpeta_raiz = esCarpetaRaiz;
+                            _g.label = 9;
+                        case 9:
+                            _f++;
+                            return [3 /*break*/, 7];
+                        case 10:
                             response = {
                                 carpetas: carpetas,
                                 filters: {
@@ -546,13 +569,13 @@ function carpetasRoutes(fastify) {
                                 };
                             }
                             return [2 /*return*/, reply.send(response)];
-                        case 7:
-                            error_2 = _f.sent();
+                        case 11:
+                            error_2 = _g.sent();
                             console.error('Error obteniendo carpetas:', error_2);
                             return [2 /*return*/, reply.status(500).send({
                                     message: 'Error interno del servidor'
                                 })];
-                        case 8: return [2 /*return*/];
+                        case 12: return [2 /*return*/];
                     }
                 });
             }); })
@@ -624,7 +647,7 @@ function carpetasRoutes(fastify) {
                 schema: {
                     tags: ['Carpetas'],
                     summary: 'Obtener el contenido de una carpeta',
-                    description: 'Obtiene el contenido completo de una carpeta específica, incluyendo sus subcarpetas y documentos. Permite configurar qué elementos incluir, límites de resultados y ordenamiento. También proporciona estadísticas detalladas sobre el contenido de la carpeta como total de elementos, tamaño total y tipos de archivo únicos.',
+                    description: 'Obtiene el contenido completo de una carpeta específica, incluyendo sus subcarpetas y documentos. Permite configurar qué elementos incluir, límites de resultados y ordenamiento. También proporciona estadísticas detalladas sobre el contenido de la carpeta como total de elementos, tamaño total y tipos de archivo únicos. Si la carpeta pertenece a un proyecto padre, también incluye las carpetas de los proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string()
                     }),
@@ -739,13 +762,13 @@ function carpetasRoutes(fastify) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var id, _a, _b, include_documentos, _c, include_carpetas, _d, limit_documentos, _e, limit_carpetas, _f, sort_documentos, _g, sort_carpetas, _h, sort_order, carpeta, response, carpetasHijas, _i, carpetasHijas_1, carpetaHija, totalDocs, totalCarpetasHijas, documentos, documentosConTipo, documentosFormateados, totalDocumentos, tamanoTotal, tiposUnicos, fechaUltima, error_4;
+                var id, _a, _b, include_documentos, _c, include_carpetas, _d, limit_documentos, _e, limit_carpetas, _f, sort_documentos, _g, sort_carpetas, _h, sort_order, carpeta, esCarpetaRaiz, response, projectIds, proyecto, proyectosHijos, carpetasHijas, _i, carpetasHijas_1, carpetaHija, totalDocs, totalCarpetasHijas, esCarpetaRaiz_1, documentos, documentosConTipo, documentosFormateados, totalDocumentos, tamanoTotal, tiposUnicos, fechaUltima, error_4;
                 var _j, _k;
                 var _this = this;
                 return __generator(this, function (_l) {
                     switch (_l.label) {
                         case 0:
-                            _l.trys.push([0, 13, , 14]);
+                            _l.trys.push([0, 18, , 19]);
                             id = request.params.id;
                             _a = request.query, _b = _a.include_documentos, include_documentos = _b === void 0 ? 'true' : _b, _c = _a.include_carpetas, include_carpetas = _c === void 0 ? 'true' : _c, _d = _a.limit_documentos, limit_documentos = _d === void 0 ? '50' : _d, _e = _a.limit_carpetas, limit_carpetas = _e === void 0 ? '50' : _e, _f = _a.sort_documentos, sort_documentos = _f === void 0 ? 'nombre_archivo' : _f, _g = _a.sort_carpetas, sort_carpetas = _g === void 0 ? 'orden_visualizacion' : _g, _h = _a.sort_order, sort_order = _h === void 0 ? 'asc' : _h;
                             return [4 /*yield*/, prisma_1.prisma.carpetas.findUnique({
@@ -778,6 +801,12 @@ function carpetasRoutes(fastify) {
                                                 color: true,
                                                 orden: true
                                             }
+                                        },
+                                        proyectos_carpeta_raiz: {
+                                            select: {
+                                                id: true,
+                                                nombre: true
+                                            }
                                         }
                                     }
                                 })];
@@ -788,8 +817,11 @@ function carpetasRoutes(fastify) {
                                         message: 'Carpeta no encontrada'
                                     })];
                             }
+                            return [4 /*yield*/, esCarpetaRaizProyecto(parseInt(id))];
+                        case 2:
+                            esCarpetaRaiz = _l.sent();
                             response = {
-                                carpeta: carpeta,
+                                carpeta: __assign(__assign({}, carpeta), { es_carpeta_raiz: esCarpetaRaiz }),
                                 contenido: {
                                     carpetas: [],
                                     documentos: []
@@ -802,44 +834,73 @@ function carpetasRoutes(fastify) {
                                     fecha_ultima_actualizacion: null
                                 }
                             };
-                            if (!(include_carpetas === 'true')) return [3 /*break*/, 8];
-                            return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
+                            if (!(include_carpetas === 'true')) return [3 /*break*/, 13];
+                            projectIds = [carpeta.proyecto_id];
+                            if (!carpeta.proyecto_id) return [3 /*break*/, 5];
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
+                                    where: { id: carpeta.proyecto_id },
+                                    select: {
+                                        id: true,
+                                        es_proyecto_padre: true,
+                                        proyecto_padre_id: true
+                                    }
+                                })];
+                        case 3:
+                            proyecto = _l.sent();
+                            if (!(proyecto && proyecto.es_proyecto_padre)) return [3 /*break*/, 5];
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
                                     where: {
-                                        carpeta_padre_id: parseInt(id),
-                                        activa: true
+                                        proyecto_padre_id: carpeta.proyecto_id,
+                                        eliminado: false
                                     },
-                                    include: {
-                                        etapa_tipo: {
-                                            select: {
-                                                id: true,
-                                                nombre: true,
-                                                color: true
-                                            }
-                                        },
-                                        carpeta_transversal: {
-                                            select: {
-                                                id: true,
-                                                nombre: true,
-                                                descripcion: true,
-                                                color: true,
-                                                orden: true
-                                            }
+                                    select: { id: true }
+                                })];
+                        case 4:
+                            proyectosHijos = _l.sent();
+                            projectIds = __spreadArray([carpeta.proyecto_id], proyectosHijos.map(function (p) { return p.id; }), true);
+                            _l.label = 5;
+                        case 5: return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
+                                where: __assign({ carpeta_padre_id: parseInt(id), activa: true }, (carpeta.proyecto_id && {
+                                    proyecto_id: { in: projectIds }
+                                })),
+                                include: {
+                                    etapa_tipo: {
+                                        select: {
+                                            id: true,
+                                            nombre: true,
+                                            color: true
                                         }
                                     },
-                                    orderBy: (_j = {},
-                                        _j[sort_carpetas] = sort_order,
-                                        _j),
-                                    take: parseInt(limit_carpetas)
-                                })];
-                        case 2:
+                                    carpeta_transversal: {
+                                        select: {
+                                            id: true,
+                                            nombre: true,
+                                            descripcion: true,
+                                            color: true,
+                                            orden: true
+                                        }
+                                    },
+                                    proyectos_carpeta_raiz: {
+                                        select: {
+                                            id: true,
+                                            nombre: true
+                                        }
+                                    }
+                                },
+                                orderBy: (_j = {},
+                                    _j[sort_carpetas] = sort_order,
+                                    _j),
+                                take: parseInt(limit_carpetas)
+                            })];
+                        case 6:
                             carpetasHijas = _l.sent();
                             _i = 0, carpetasHijas_1 = carpetasHijas;
-                            _l.label = 3;
-                        case 3:
-                            if (!(_i < carpetasHijas_1.length)) return [3 /*break*/, 7];
+                            _l.label = 7;
+                        case 7:
+                            if (!(_i < carpetasHijas_1.length)) return [3 /*break*/, 12];
                             carpetaHija = carpetasHijas_1[_i];
                             return [4 /*yield*/, calcularTotalDocumentosRecursivo(carpetaHija.id)];
-                        case 4:
+                        case 8:
                             totalDocs = _l.sent();
                             return [4 /*yield*/, prisma_1.prisma.carpetas.count({
                                     where: {
@@ -847,20 +908,24 @@ function carpetasRoutes(fastify) {
                                         activa: true
                                     }
                                 })];
-                        case 5:
+                        case 9:
                             totalCarpetasHijas = _l.sent();
+                            return [4 /*yield*/, esCarpetaRaizProyecto(carpetaHija.id)];
+                        case 10:
+                            esCarpetaRaiz_1 = _l.sent();
                             carpetaHija.total_documentos = totalDocs;
                             carpetaHija.total_carpetas_hijas = totalCarpetasHijas;
-                            _l.label = 6;
-                        case 6:
+                            carpetaHija.es_carpeta_raiz = esCarpetaRaiz_1;
+                            _l.label = 11;
+                        case 11:
                             _i++;
-                            return [3 /*break*/, 3];
-                        case 7:
+                            return [3 /*break*/, 7];
+                        case 12:
                             response.contenido.carpetas = carpetasHijas;
                             response.estadisticas.total_carpetas = carpetasHijas.length;
-                            _l.label = 8;
-                        case 8:
-                            if (!(include_documentos === 'true')) return [3 /*break*/, 12];
+                            _l.label = 13;
+                        case 13:
+                            if (!(include_documentos === 'true')) return [3 /*break*/, 17];
                             return [4 /*yield*/, prisma_1.prisma.documentos.findMany({
                                     where: {
                                         carpeta_id: parseInt(id),
@@ -885,7 +950,7 @@ function carpetasRoutes(fastify) {
                                         }
                                     }
                                 })];
-                        case 9:
+                        case 14:
                             documentos = _l.sent();
                             return [4 /*yield*/, Promise.all(documentos.map(function (doc) { return __awaiter(_this, void 0, void 0, function () {
                                     var tipoDoc;
@@ -908,12 +973,12 @@ function carpetasRoutes(fastify) {
                                         }
                                     });
                                 }); }))];
-                        case 10:
+                        case 15:
                             documentosConTipo = _l.sent();
                             documentosFormateados = documentos.map(function (doc) { return (__assign(__assign({}, doc), { tamano: doc.tamano ? Number(doc.tamano) : null })); });
                             response.contenido.documentos = documentosFormateados;
                             return [4 /*yield*/, calcularTotalDocumentosRecursivo(parseInt(id))];
-                        case 11:
+                        case 16:
                             totalDocumentos = _l.sent();
                             response.estadisticas.total_documentos = totalDocumentos;
                             // Calcular estadísticas de documentos
@@ -931,15 +996,15 @@ function carpetasRoutes(fastify) {
                                 response.estadisticas.tipos_archivo_unicos = tiposUnicos;
                                 response.estadisticas.fecha_ultima_actualizacion = fechaUltima;
                             }
-                            _l.label = 12;
-                        case 12: return [2 /*return*/, reply.send(response)];
-                        case 13:
+                            _l.label = 17;
+                        case 17: return [2 /*return*/, reply.send(response)];
+                        case 18:
                             error_4 = _l.sent();
                             console.error('Error obteniendo contenido de carpeta:', error_4);
                             return [2 /*return*/, reply.status(500).send({
                                     message: 'Error interno del servidor'
                                 })];
-                        case 14: return [2 /*return*/];
+                        case 19: return [2 /*return*/];
                     }
                 });
             }); })
@@ -1425,6 +1490,42 @@ function esSubcarpetaDe(carpetaId, carpetaPadreId) {
                 case 3:
                     error_9 = _a.sent();
                     console.error('Error verificando si es subcarpeta:', error_9);
+                    return [2 /*return*/, false];
+                case 4: return [2 /*return*/];
+            }
+        });
+    });
+}
+// Función auxiliar para determinar si una carpeta es la carpeta raíz de un proyecto
+function esCarpetaRaizProyecto(carpetaId) {
+    return __awaiter(this, void 0, void 0, function () {
+        var carpeta, proyecto, error_10;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    _a.trys.push([0, 3, , 4]);
+                    return [4 /*yield*/, prisma_1.prisma.carpetas.findUnique({
+                            where: { id: carpetaId },
+                            select: {
+                                id: true,
+                                proyecto_id: true
+                            }
+                        })];
+                case 1:
+                    carpeta = _a.sent();
+                    if (!carpeta || !carpeta.proyecto_id) {
+                        return [2 /*return*/, false];
+                    }
+                    return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
+                            where: { id: carpeta.proyecto_id },
+                            select: { carpeta_raiz_id: true }
+                        })];
+                case 2:
+                    proyecto = _a.sent();
+                    return [2 /*return*/, (proyecto === null || proyecto === void 0 ? void 0 : proyecto.carpeta_raiz_id) === carpetaId];
+                case 3:
+                    error_10 = _a.sent();
+                    console.error('Error verificando si es carpeta raíz del proyecto:', error_10);
                     return [2 /*return*/, false];
                 case 4: return [2 /*return*/];
             }

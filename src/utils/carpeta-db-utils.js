@@ -35,6 +35,15 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CarpetaDBUtils = void 0;
 var prisma_1 = require("@/lib/prisma");
@@ -386,12 +395,11 @@ var CarpetaDBUtils = /** @class */ (function () {
      */
     CarpetaDBUtils.getProjectFolders = function (projectId) {
         return __awaiter(this, void 0, void 0, function () {
-            var proyecto, proyectosHijos, projectIds, carpetas, error_5;
+            var proyecto, proyectosHijos, projectIds, carpetas, carpetas, error_5;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        _a.trys.push([0, 6, , 7]);
-                        // First, check if this project is a parent project
+                        _a.trys.push([0, 7, , 8]);
                         return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
                                 where: { id: projectId },
                                 select: {
@@ -405,63 +413,57 @@ var CarpetaDBUtils = /** @class */ (function () {
                         if (!proyecto) {
                             throw new Error("Project with ID ".concat(projectId, " not found"));
                         }
-                        // If it's a parent project, get folders from all child projects as well
-                        if (proyecto.es_proyecto_padre) {
-                            // Get child project IDs
-                            return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
-                                    where: {
-                                        proyecto_padre_id: projectId,
-                                        eliminado: false
-                                    },
-                                    select: { id: true }
-                                })];
-                        case 2:
-                            proyectosHijos = _a.sent();
-                            projectIds = [projectId].concat(proyectosHijos.map(function (p) { return p.id; }));
-                            return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
-                                    where: {
-                                        proyecto_id: { in: projectIds },
-                                        activa: true
-                                    },
-                                    include: {
-                                        carpetas_hijas: {
-                                            where: { activa: true }
-                                        }
-                                    },
-                                    orderBy: {
-                                        orden_visualizacion: 'asc'
+                        if (!proyecto.es_proyecto_padre) return [3 /*break*/, 4];
+                        return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                where: {
+                                    proyecto_padre_id: projectId,
+                                    eliminado: false
+                                },
+                                select: { id: true }
+                            })];
+                    case 2:
+                        proyectosHijos = _a.sent();
+                        projectIds = __spreadArray([projectId], proyectosHijos.map(function (p) { return p.id; }), true);
+                        return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
+                                where: {
+                                    proyecto_id: { in: projectIds },
+                                    activa: true
+                                },
+                                include: {
+                                    carpetas_hijas: {
+                                        where: { activa: true }
                                     }
-                                })];
-                        case 3:
-                            carpetas = _a.sent();
-                            return [2 /*return*/, carpetas];
-                        } else {
-                            // If it's not a parent project, get only its own folders
-                            return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
-                                    where: {
-                                        proyecto_id: projectId,
-                                        activa: true
-                                    },
-                                    include: {
-                                        carpetas_hijas: {
-                                            where: { activa: true }
-                                        }
-                                    },
-                                    orderBy: {
-                                        orden_visualizacion: 'asc'
-                                    }
-                                })];
-                        case 4:
-                            carpetas = _a.sent();
-                            return [2 /*return*/, carpetas];
-                        }
-                        _a.label = 5;
-                    case 5: return [3 /*break*/, 7];
-                    case 6:
+                                },
+                                orderBy: {
+                                    orden_visualizacion: 'asc'
+                                }
+                            })];
+                    case 3:
+                        carpetas = _a.sent();
+                        return [2 /*return*/, carpetas];
+                    case 4: return [4 /*yield*/, prisma_1.prisma.carpetas.findMany({
+                            where: {
+                                proyecto_id: projectId,
+                                activa: true
+                            },
+                            include: {
+                                carpetas_hijas: {
+                                    where: { activa: true }
+                                }
+                            },
+                            orderBy: {
+                                orden_visualizacion: 'asc'
+                            }
+                        })];
+                    case 5:
+                        carpetas = _a.sent();
+                        return [2 /*return*/, carpetas];
+                    case 6: return [3 /*break*/, 8];
+                    case 7:
                         error_5 = _a.sent();
                         console.error('Error getting project folders:', error_5);
                         throw error_5;
-                    case 7: return [2 /*return*/];
+                    case 8: return [2 /*return*/];
                 }
             });
         });

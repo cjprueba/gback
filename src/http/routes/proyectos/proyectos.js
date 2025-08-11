@@ -63,6 +63,52 @@ var zod_1 = require("zod");
 var prisma_1 = require("@/lib/prisma");
 var minio_utils_1 = require("@/utils/minio-utils");
 var carpeta_db_utils_1 = require("@/utils/carpeta-db-utils");
+// Helper function to extract all commune IDs from nested geographical structure
+function extractComunaIdsFromNestedStructure(regiones) {
+    var comunaIds = [];
+    regiones.forEach(function (region) {
+        region.provincias.forEach(function (provincia) {
+            provincia.comunas.forEach(function (comuna) {
+                comunaIds.push(comuna.id);
+            });
+        });
+    });
+    return comunaIds;
+}
+// Helper function to transform flat geographical data into deeply nested hierarchical structure
+function transformGeographicalData(etapasGeografia) {
+    // Create a map of regions with their provinces and communes
+    var regionsMap = new Map();
+    // Process all geographical data from the unified table
+    // Now each record represents a specific commune with its complete hierarchy
+    etapasGeografia.forEach(function (etapaGeo) {
+        var region = etapaGeo.region, provincia = etapaGeo.provincia, comuna = etapaGeo.comuna;
+        // Ensure we have all the geographical data
+        if (region && provincia && comuna) {
+            // Add region if not exists
+            if (!regionsMap.has(region.id)) {
+                regionsMap.set(region.id, __assign(__assign({}, region), { etapas_provincias: [] }));
+            }
+            var regionData = regionsMap.get(region.id);
+            // Add province if not exists
+            var provinciaData = regionData.etapas_provincias.find(function (p) { return p.provincia.id === provincia.id; });
+            if (!provinciaData) {
+                provinciaData = {
+                    provincia: __assign(__assign({}, provincia), { etapas_comunas: [] })
+                };
+                regionData.etapas_provincias.push(provinciaData);
+            }
+            // Add comuna if not exists
+            if (!provinciaData.provincia.etapas_comunas.find(function (c) { return c.comuna.id === comuna.id; })) {
+                provinciaData.provincia.etapas_comunas.push({
+                    comuna: comuna
+                });
+            }
+        }
+    });
+    // Convert map to array
+    return Array.from(regionsMap.values());
+}
 function proyectosRoutes(fastify) {
     return __awaiter(this, void 0, void 0, function () {
         var _this = this;
@@ -98,9 +144,16 @@ function proyectosRoutes(fastify) {
                             etapa_tipo_id: zod_1.default.number(),
                             tipo_iniciativa_id: zod_1.default.number(),
                             tipo_obra_id: zod_1.default.number().optional(),
-                            regiones: zod_1.default.array(zod_1.default.number()).optional(),
-                            provincias: zod_1.default.array(zod_1.default.number()).optional(),
-                            comunas: zod_1.default.array(zod_1.default.number()).optional(),
+                            // Nueva estructura anidada para datos geográficos
+                            regiones: zod_1.default.array(zod_1.default.object({
+                                id: zod_1.default.number(),
+                                provincias: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    comunas: zod_1.default.array(zod_1.default.object({
+                                        id: zod_1.default.number()
+                                    }))
+                                }))
+                            })).optional(),
                             volumen: zod_1.default.string().optional(),
                             presupuesto_oficial: zod_1.default.string().optional(),
                             valor_referencia: zod_1.default.string().max(255).optional(),
@@ -124,9 +177,9 @@ function proyectosRoutes(fastify) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var _a, etapas_registro, datosProyecto, proyecto, etapaTipoId, etapaCreada_1, projectFolderPath, carpetaRaiz, dbError_1, initialFolders, folderError_1, etapaTipo, carpetasTransversales, _i, carpetasTransversales_1, carpetaTransversal, subcarpetas, subfolderError_1, etapaTipoError_1, error_1;
-                return __generator(this, function (_b) {
-                    switch (_b.label) {
+                var _a, etapas_registro, datosProyecto, proyecto, etapaTipoId, etapaCreada, comunaIds, geographicalData, _i, comunaIds_1, comunaId, comuna, projectFolderPath, carpetaRaiz, dbError_1, initialFolders, folderError_1, etapaTipo, carpetasTransversales, _b, carpetasTransversales_1, carpetaTransversal, subcarpetas, subfolderError_1, etapaTipoError_1, error_1;
+                return __generator(this, function (_c) {
+                    switch (_c.label) {
                         case 0:
                             _a = request.body, etapas_registro = _a.etapas_registro, datosProyecto = __rest(_a, ["etapas_registro"]);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.create({
@@ -140,7 +193,7 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 1:
-                            proyecto = _b.sent();
+                            proyecto = _c.sent();
                             etapaTipoId = null;
                             if (!etapas_registro) return [3 /*break*/, 8];
                             etapaTipoId = etapas_registro.etapa_tipo_id;
@@ -169,53 +222,61 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 2:
-                            etapaCreada_1 = _b.sent();
-                            if (!(etapas_registro.regiones && etapas_registro.regiones.length > 0)) return [3 /*break*/, 4];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_regiones.createMany({
-                                    data: etapas_registro.regiones.map(function (regionId) { return ({
-                                        etapa_registro_id: etapaCreada_1.id,
-                                        region_id: regionId
-                                    }); })
-                                })];
+                            etapaCreada = _c.sent();
+                            if (!(etapas_registro.regiones && etapas_registro.regiones.length > 0)) return [3 /*break*/, 8];
+                            comunaIds = extractComunaIdsFromNestedStructure(etapas_registro.regiones);
+                            geographicalData = [];
+                            _i = 0, comunaIds_1 = comunaIds;
+                            _c.label = 3;
                         case 3:
-                            _b.sent();
-                            _b.label = 4;
-                        case 4:
-                            if (!(etapas_registro.provincias && etapas_registro.provincias.length > 0)) return [3 /*break*/, 6];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_provincias.createMany({
-                                    data: etapas_registro.provincias.map(function (provinciaId) { return ({
-                                        etapa_registro_id: etapaCreada_1.id,
-                                        provincia_id: provinciaId
-                                    }); })
+                            if (!(_i < comunaIds_1.length)) return [3 /*break*/, 6];
+                            comunaId = comunaIds_1[_i];
+                            return [4 /*yield*/, prisma_1.prisma.comunas.findUnique({
+                                    where: { id: comunaId },
+                                    include: {
+                                        provincia: {
+                                            include: {
+                                                region: true
+                                            }
+                                        }
+                                    }
                                 })];
+                        case 4:
+                            comuna = _c.sent();
+                            if (comuna) {
+                                geographicalData.push({
+                                    etapa_registro_id: etapaCreada.id,
+                                    region_id: comuna.provincia.region.id,
+                                    provincia_id: comuna.provincia.id,
+                                    comuna_id: comuna.id
+                                });
+                            }
+                            _c.label = 5;
                         case 5:
-                            _b.sent();
-                            _b.label = 6;
+                            _i++;
+                            return [3 /*break*/, 3];
                         case 6:
-                            if (!(etapas_registro.comunas && etapas_registro.comunas.length > 0)) return [3 /*break*/, 8];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_comunas.createMany({
-                                    data: etapas_registro.comunas.map(function (comunaId) { return ({
-                                        etapa_registro_id: etapaCreada_1.id,
-                                        comuna_id: comunaId
-                                    }); })
+                            if (!(geographicalData.length > 0)) return [3 /*break*/, 8];
+                            return [4 /*yield*/, prisma_1.prisma.etapas_geografia.createMany({
+                                    data: geographicalData
                                 })];
                         case 7:
-                            _b.sent();
-                            _b.label = 8;
+                            _c.sent();
+                            _c.label = 8;
                         case 8:
-                            _b.trys.push([8, 35, , 36]);
+                            _c.trys.push([8, 35, , 36]);
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createProjectFolder(proyecto.nombre, proyecto.id)];
                         case 9:
-                            projectFolderPath = _b.sent();
+                            projectFolderPath = _c.sent();
                             console.log("Project folder created in MinIO: ".concat(projectFolderPath));
                             carpetaRaiz = null;
-                            _b.label = 10;
+                            _c.label = 10;
                         case 10:
-                            _b.trys.push([10, 12, , 13]);
+                            _c.trys.push([10, 12, , 13]);
                             console.log("Creating root folder for project \"".concat(proyecto.nombre, "\" with ID: ").concat(proyecto.id));
                             return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createProjectRootFolder(proyecto.id, proyecto.nombre, projectFolderPath, datosProyecto.creado_por)];
                         case 11:
-                            carpetaRaiz = _b.sent();
+                            carpetaRaiz = _c.sent();
                             console.log('Project root folder DB record created successfully with S3 data:', {
                                 id: carpetaRaiz.id,
                                 nombre: carpetaRaiz.nombre, // Show the folder name (should be project name)
@@ -226,7 +287,7 @@ function proyectosRoutes(fastify) {
                             });
                             return [3 /*break*/, 13];
                         case 12:
-                            dbError_1 = _b.sent();
+                            dbError_1 = _c.sent();
                             console.error('❌ Error creating project root folder DB record:', dbError_1);
                             console.error('Error details:', {
                                 message: dbError_1.message,
@@ -239,29 +300,29 @@ function proyectosRoutes(fastify) {
                             if (!(datosProyecto.carpeta_inicial && typeof datosProyecto.carpeta_inicial === 'object')) return [3 /*break*/, 18];
                             console.log('Creating initial folders for project:', proyecto.nombre);
                             console.log('Initial folder structure:', JSON.stringify(datosProyecto.carpeta_inicial, null, 2));
-                            _b.label = 14;
+                            _c.label = 14;
                         case 14:
-                            _b.trys.push([14, 17, , 18]);
+                            _c.trys.push([14, 17, , 18]);
                             // Crear carpetas en MinIO
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createInitialFolders(projectFolderPath, datosProyecto.carpeta_inicial)];
                         case 15:
                             // Crear carpetas en MinIO
-                            _b.sent();
+                            _c.sent();
                             console.log('Initial folders created successfully in MinIO for project:', proyecto.nombre);
                             return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createInitialFoldersDB(proyecto.id, projectFolderPath, datosProyecto.carpeta_inicial, datosProyecto.creado_por, carpetaRaiz === null || carpetaRaiz === void 0 ? void 0 : carpetaRaiz.id, etapaTipoId)];
                         case 16:
-                            initialFolders = _b.sent();
+                            initialFolders = _c.sent();
                             console.log("Initial folders DB records created successfully for project: ".concat(proyecto.nombre, ". Created ").concat(initialFolders.length, " folders with S3 data."));
                             return [3 /*break*/, 18];
                         case 17:
-                            folderError_1 = _b.sent();
+                            folderError_1 = _c.sent();
                             console.error('Error creating initial folders:', folderError_1);
                             return [3 /*break*/, 18];
                         case 18:
                             if (!(etapas_registro && etapas_registro.etapa_tipo_id)) return [3 /*break*/, 34];
-                            _b.label = 19;
+                            _c.label = 19;
                         case 19:
-                            _b.trys.push([19, 33, , 34]);
+                            _c.trys.push([19, 33, , 34]);
                             console.log('Fetching etapa tipo folders for etapa_tipo_id:', etapas_registro.etapa_tipo_id);
                             return [4 /*yield*/, prisma_1.prisma.etapas_tipo.findUnique({
                                     where: { id: etapas_registro.etapa_tipo_id },
@@ -272,7 +333,7 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 20:
-                            etapaTipo = _b.sent();
+                            etapaTipo = _c.sent();
                             return [4 /*yield*/, prisma_1.prisma.carpetas_transversales.findMany({
                                     where: {
                                         etapa_tipo_id: etapas_registro.etapa_tipo_id,
@@ -283,44 +344,44 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 21:
-                            carpetasTransversales = _b.sent();
+                            carpetasTransversales = _c.sent();
                             if (!(carpetasTransversales && carpetasTransversales.length > 0)) return [3 /*break*/, 29];
                             console.log("Creating ".concat(carpetasTransversales.length, " transverse folders for etapa tipo: ").concat(etapaTipo === null || etapaTipo === void 0 ? void 0 : etapaTipo.nombre));
-                            _i = 0, carpetasTransversales_1 = carpetasTransversales;
-                            _b.label = 22;
+                            _b = 0, carpetasTransversales_1 = carpetasTransversales;
+                            _c.label = 22;
                         case 22:
-                            if (!(_i < carpetasTransversales_1.length)) return [3 /*break*/, 28];
-                            carpetaTransversal = carpetasTransversales_1[_i];
+                            if (!(_b < carpetasTransversales_1.length)) return [3 /*break*/, 28];
+                            carpetaTransversal = carpetasTransversales_1[_b];
                             if (!(carpetaTransversal.estructura_carpetas && typeof carpetaTransversal.estructura_carpetas === 'object')) return [3 /*break*/, 27];
                             console.log("Creating transverse subfolders for: ".concat(carpetaTransversal.nombre));
                             console.log('Estructura carpetas:', JSON.stringify(carpetaTransversal.estructura_carpetas, null, 2));
-                            _b.label = 23;
+                            _c.label = 23;
                         case 23:
-                            _b.trys.push([23, 26, , 27]);
+                            _c.trys.push([23, 26, , 27]);
                             // Crear las subcarpetas directamente en la raíz del proyecto en MinIO
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createNestedFolderStructure(projectFolderPath, carpetaTransversal.estructura_carpetas)];
                         case 24:
                             // Crear las subcarpetas directamente en la raíz del proyecto en MinIO
-                            _b.sent();
+                            _c.sent();
                             console.log("Transverse subfolders created successfully in MinIO for: ".concat(carpetaTransversal.nombre));
                             return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createNestedFolderStructureDB(proyecto.id, projectFolderPath, carpetaTransversal.estructura_carpetas, datosProyecto.creado_por, carpetaRaiz === null || carpetaRaiz === void 0 ? void 0 : carpetaRaiz.id, // carpeta_padre_id será la carpeta raíz del proyecto
                                 etapaTipo === null || etapaTipo === void 0 ? void 0 : etapaTipo.id, 'Carpeta transversal del proyecto', // descripción específica para carpetas transversales
                                 carpetaTransversal.id // carpeta_transversal_id para las subcarpetas
                                 )];
                         case 25:
-                            subcarpetas = _b.sent();
+                            subcarpetas = _c.sent();
                             console.log("Transverse subfolders DB records created successfully for: ".concat(carpetaTransversal.nombre, ". Created ").concat(subcarpetas.length, " subfolders."));
                             return [3 /*break*/, 27];
                         case 26:
-                            subfolderError_1 = _b.sent();
+                            subfolderError_1 = _c.sent();
                             console.error("Error creating transverse subfolders for ".concat(carpetaTransversal.nombre, ":"), subfolderError_1);
                             return [3 /*break*/, 27];
                         case 27:
-                            _i++;
+                            _b++;
                             return [3 /*break*/, 22];
                         case 28:
                             console.log("Transverse folders created successfully for project: ".concat(proyecto.nombre));
-                            _b.label = 29;
+                            _c.label = 29;
                         case 29:
                             if (!(etapaTipo && etapaTipo.carpetas_iniciales)) return [3 /*break*/, 32];
                             console.log('Etapa tipo found:', etapaTipo.nombre);
@@ -331,17 +392,17 @@ function proyectosRoutes(fastify) {
                                 })];
                         case 30:
                             // Crear carpetas en MinIO
-                            _b.sent();
+                            _c.sent();
                             console.log('Etapa tipo folders created successfully in MinIO for project:', proyecto.nombre);
                             // Crear registros en la base de datos
                             return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createEtapaTipoFoldersDB(proyecto.id, projectFolderPath, { carpetas_iniciales: etapaTipo.carpetas_iniciales }, datosProyecto.creado_por, carpetaRaiz === null || carpetaRaiz === void 0 ? void 0 : carpetaRaiz.id, etapaTipo.id)];
                         case 31:
                             // Crear registros en la base de datos
-                            _b.sent();
-                            _b.label = 32;
+                            _c.sent();
+                            _c.label = 32;
                         case 32: return [3 /*break*/, 34];
                         case 33:
-                            etapaTipoError_1 = _b.sent();
+                            etapaTipoError_1 = _c.sent();
                             console.error('Error creating etapa tipo folders:', etapaTipoError_1);
                             return [3 /*break*/, 34];
                         case 34:
@@ -349,7 +410,7 @@ function proyectosRoutes(fastify) {
                             console.log("S3 bucket used: ".concat(process.env.MINIO_BUCKET || 'gestor-files'));
                             return [3 /*break*/, 36];
                         case 35:
-                            error_1 = _b.sent();
+                            error_1 = _c.sent();
                             console.error('Error creating project folders and DB records:', error_1);
                             return [3 /*break*/, 36];
                         case 36: return [2 /*return*/, reply.status(201).send({
@@ -363,7 +424,7 @@ function proyectosRoutes(fastify) {
                 schema: {
                     tags: ['Proyectos'],
                     summary: 'Obtener lista de proyectos',
-                    description: 'Retorna una lista paginada de todos los proyectos activos (no eliminados) con información básica incluyendo el tipo de etapa más reciente, el creador y la carpeta raíz.',
+                    description: 'Retorna una lista paginada de todos los proyectos activos (no eliminados) incluyendo información básica, el tipo de etapa más reciente, el creador y la carpeta raíz. El campo es_proyecto_padre indica si es un proyecto padre o hijo.',
                     response: {
                         200: zod_1.default.object({
                             success: zod_1.default.boolean(),
@@ -373,6 +434,8 @@ function proyectosRoutes(fastify) {
                                 nombre: zod_1.default.string(),
                                 created_at: zod_1.default.date(),
                                 carpeta_raiz_id: zod_1.default.number().nullable(),
+                                es_proyecto_padre: zod_1.default.boolean(),
+                                proyecto_padre_id: zod_1.default.number().nullable(),
                                 // Solo etapa_tipo
                                 etapas_registro: zod_1.default.array(zod_1.default.object({
                                     etapa_tipo: zod_1.default.object({
@@ -397,12 +460,15 @@ function proyectosRoutes(fastify) {
                         case 0: return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
                                 where: {
                                     eliminado: false
+                                    // Removido el filtro proyecto_padre_id: null para mostrar todos los proyectos
                                 },
                                 select: {
                                     id: true,
                                     nombre: true,
                                     created_at: true,
                                     carpeta_raiz_id: true,
+                                    es_proyecto_padre: true,
+                                    proyecto_padre_id: true,
                                     etapas_registro: {
                                         take: 1,
                                         orderBy: {
@@ -440,7 +506,7 @@ function proyectosRoutes(fastify) {
                 schema: {
                     tags: ['Proyectos'],
                     summary: 'Obtener proyecto por ID',
-                    description: 'Retorna la información completa de un proyecto específico activo (no eliminado) incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador.',
+                    description: 'Retorna la información completa de un proyecto específico activo (no eliminado) incluyendo todas sus etapas de registro, relaciones con divisiones, departamentos, unidades y creador. El campo es_proyecto_padre indica si es un proyecto padre o hijo.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -454,6 +520,8 @@ function proyectosRoutes(fastify) {
                                 carpeta_inicial: zod_1.default.any().nullable(),
                                 carpeta_raiz_id: zod_1.default.number().nullable(),
                                 created_at: zod_1.default.date(),
+                                es_proyecto_padre: zod_1.default.boolean(),
+                                proyecto_padre_id: zod_1.default.number().nullable(),
                                 // Relaciones
                                 etapas_registro: zod_1.default.array(zod_1.default.object({
                                     id: zod_1.default.number(),
@@ -471,24 +539,30 @@ function proyectosRoutes(fastify) {
                                         id: zod_1.default.number(),
                                         nombre: zod_1.default.string()
                                     }).nullable(),
-                                    // Hierarchical geographical data
-                                    regiones: zod_1.default.array(zod_1.default.object({
+                                    // Deeply nested hierarchical geographical data
+                                    etapas_regiones: zod_1.default.array(zod_1.default.object({
                                         id: zod_1.default.number(),
                                         codigo: zod_1.default.string(),
                                         nombre: zod_1.default.string(),
                                         nombre_corto: zod_1.default.string().nullable(),
-                                        provincias: zod_1.default.array(zod_1.default.object({
-                                            id: zod_1.default.number(),
-                                            codigo: zod_1.default.string(),
-                                            nombre: zod_1.default.string(),
-                                            comunas: zod_1.default.array(zod_1.default.object({
+                                        etapas_provincias: zod_1.default.array(zod_1.default.object({
+                                            provincia: zod_1.default.object({
                                                 id: zod_1.default.number(),
-                                                nombre: zod_1.default.string()
-                                            }))
+                                                codigo: zod_1.default.string(),
+                                                nombre: zod_1.default.string(),
+                                                etapas_comunas: zod_1.default.array(zod_1.default.object({
+                                                    comuna: zod_1.default.object({
+                                                        id: zod_1.default.number(),
+                                                        nombre: zod_1.default.string()
+                                                    })
+                                                }))
+                                            })
                                         }))
                                     })),
                                     volumen: zod_1.default.string().nullable(),
                                     presupuesto_oficial: zod_1.default.string().nullable(),
+                                    valor_referencia: zod_1.default.string().nullable(),
+                                    bip: zod_1.default.string().nullable(),
                                     fecha_llamado_licitacion: zod_1.default.date().nullable(),
                                     fecha_recepcion_ofertas_tecnicas: zod_1.default.date().nullable(),
                                     fecha_apertura_ofertas_economicas: zod_1.default.date().nullable(),
@@ -547,8 +621,9 @@ function proyectosRoutes(fastify) {
                                         carpeta_inicial: true,
                                         carpeta_raiz_id: true,
                                         created_at: true,
+                                        es_proyecto_padre: true,
+                                        proyecto_padre_id: true,
                                         etapas_registro: {
-                                            take: 1,
                                             orderBy: {
                                                 fecha_creacion: 'desc'
                                             },
@@ -563,28 +638,28 @@ function proyectosRoutes(fastify) {
                                                 },
                                                 tipo_iniciativa: true,
                                                 tipo_obra: true,
-                                                // Include multiple regions, provinces, and communes
-                                                etapas_regiones: {
+                                                // Include unified geographical data
+                                                etapas_geografia: {
                                                     include: {
                                                         region: {
                                                             select: {
                                                                 id: true,
                                                                 codigo: true,
                                                                 nombre: true,
-                                                                nombre_corto: true,
-                                                                provincias: {
-                                                                    select: {
-                                                                        id: true,
-                                                                        codigo: true,
-                                                                        nombre: true,
-                                                                        comunas: {
-                                                                            select: {
-                                                                                id: true,
-                                                                                nombre: true
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
+                                                                nombre_corto: true
+                                                            }
+                                                        },
+                                                        provincia: {
+                                                            select: {
+                                                                id: true,
+                                                                codigo: true,
+                                                                nombre: true
+                                                            }
+                                                        },
+                                                        comuna: {
+                                                            select: {
+                                                                id: true,
+                                                                nombre: true
                                                             }
                                                         }
                                                     }
@@ -618,11 +693,7 @@ function proyectosRoutes(fastify) {
                                         message: 'Proyecto no encontrado o ha sido eliminado'
                                     })];
                             }
-                            transformedProyecto = __assign(__assign({}, proyecto), { etapas_registro: proyecto.etapas_registro.map(function (etapa) { return (__assign(__assign({}, etapa), { 
-                                    // Extract hierarchical regions with their provinces and communes
-                                    regiones: etapa.etapas_regiones.map(function (er) { return er.region; }), 
-                                    // Remove the relationship tables from the response
-                                    etapas_regiones: undefined })); }) });
+                            transformedProyecto = __assign(__assign({}, proyecto), { etapas_registro: proyecto.etapas_registro.map(function (etapa) { return (__assign(__assign({}, etapa), { etapas_regiones: transformGeographicalData(etapa.etapas_geografia) })); }) });
                             return [2 /*return*/, {
                                     success: true,
                                     message: 'Proyecto obtenido exitosamente',
@@ -634,8 +705,8 @@ function proyectosRoutes(fastify) {
                 .put('/proyectos/:id', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Actualizar proyecto existente',
-                    description: 'Actualiza la información de un proyecto existente. Permite modificar datos básicos del proyecto y crear o actualizar etapas de registro asociadas.',
+                    summary: 'Actualizar proyecto padre existente',
+                    description: 'Actualiza la información de un proyecto padre existente. Permite modificar datos básicos del proyecto y crear o actualizar etapas de registro asociadas. No permite actualizar proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -658,9 +729,16 @@ function proyectosRoutes(fastify) {
                         etapas_registro: zod_1.default.object({
                             tipo_iniciativa_id: zod_1.default.number().optional(),
                             tipo_obra_id: zod_1.default.number().optional(),
-                            regiones: zod_1.default.array(zod_1.default.number()).optional(),
-                            provincias: zod_1.default.array(zod_1.default.number()).optional(),
-                            comunas: zod_1.default.array(zod_1.default.number()).optional(),
+                            // Nueva estructura anidada para datos geográficos
+                            regiones: zod_1.default.array(zod_1.default.object({
+                                id: zod_1.default.number(),
+                                provincias: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    comunas: zod_1.default.array(zod_1.default.object({
+                                        id: zod_1.default.number()
+                                    }))
+                                }))
+                            })).optional(),
                             volumen: zod_1.default.string().optional(),
                             presupuesto_oficial: zod_1.default.string().optional(),
                             valor_referencia: zod_1.default.string().max(255).optional(),
@@ -691,23 +769,27 @@ function proyectosRoutes(fastify) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var id, proyectoExistente, _a, etapas_registro, datosProyecto, proyectoActualizado, etapasExistentes, etapaExistente_1, regiones, provincias, comunas, datosEtapa, regiones, provincias, comunas, datosEtapa, etapaCreada_2;
-                return __generator(this, function (_b) {
-                    switch (_b.label) {
+                var id, proyectoExistente, _a, etapas_registro, datosProyecto, proyectoActualizado, etapasExistentes, etapaExistente, regiones, datosEtapa, comunaIds, geographicalData, _i, comunaIds_2, comunaId, comuna, regiones, datosEtapa, etapaData, etapaCreada, comunaIds, geographicalData, _b, comunaIds_3, comunaId, comuna;
+                return __generator(this, function (_c) {
+                    switch (_c.label) {
                         case 0:
                             id = request.params.id;
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
-                                    where: { id: id },
+                                    where: {
+                                        id: id,
+                                        // Solo permitir actualizar proyectos que NO son hijos
+                                        proyecto_padre_id: null
+                                    },
                                     include: {
                                         etapas_registro: true
                                     }
                                 })];
                         case 1:
-                            proyectoExistente = _b.sent();
+                            proyectoExistente = _c.sent();
                             if (!proyectoExistente) {
                                 return [2 /*return*/, reply.status(404).send({
                                         success: false,
-                                        message: 'Proyecto no encontrado'
+                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
                                     })];
                             }
                             _a = request.body, etapas_registro = _a.etapas_registro, datosProyecto = __rest(_a, ["etapas_registro"]);
@@ -716,10 +798,10 @@ function proyectosRoutes(fastify) {
                                     data: datosProyecto
                                 })];
                         case 2:
-                            proyectoActualizado = _b.sent();
+                            proyectoActualizado = _c.sent();
                             console.log("proyecto actualizado");
                             console.log(request.body);
-                            if (!etapas_registro) return [3 /*break*/, 21];
+                            if (!etapas_registro) return [3 /*break*/, 19];
                             return [4 /*yield*/, prisma_1.prisma.etapas_registro.findMany({
                                     where: {
                                         proyecto_id: id,
@@ -730,121 +812,157 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 3:
-                            etapasExistentes = _b.sent();
-                            etapaExistente_1 = etapasExistentes[0];
+                            etapasExistentes = _c.sent();
+                            etapaExistente = etapasExistentes[0];
                             console.log(" etapas existente");
-                            console.log(etapaExistente_1);
+                            console.log(etapaExistente);
                             console.log("proyecto_id");
                             console.log(id);
-                            if (!etapaExistente_1) return [3 /*break*/, 14];
+                            if (!etapaExistente) return [3 /*break*/, 12];
                             // Si existe, actualizar el registro existente
                             console.log("actualizar");
-                            regiones = etapas_registro.regiones, provincias = etapas_registro.provincias, comunas = etapas_registro.comunas, datosEtapa = __rest(etapas_registro, ["regiones", "provincias", "comunas"]);
+                            regiones = etapas_registro.regiones, datosEtapa = __rest(etapas_registro, ["regiones"]);
                             return [4 /*yield*/, prisma_1.prisma.etapas_registro.update({
-                                    where: { id: etapaExistente_1.id },
+                                    where: { id: etapaExistente.id },
                                     data: __assign(__assign({}, datosEtapa), { fecha_actualizacion: new Date() })
                                 })];
                         case 4:
-                            _b.sent();
-                            if (!(regiones !== undefined)) return [3 /*break*/, 7];
-                            // Eliminar relaciones existentes
-                            return [4 /*yield*/, prisma_1.prisma.etapas_regiones.deleteMany({
-                                    where: { etapa_registro_id: etapaExistente_1.id }
+                            _c.sent();
+                            if (!(regiones !== undefined)) return [3 /*break*/, 11];
+                            // Eliminar todas las relaciones geográficas existentes
+                            return [4 /*yield*/, prisma_1.prisma.etapas_geografia.deleteMany({
+                                    where: { etapa_registro_id: etapaExistente.id }
                                 })];
                         case 5:
-                            // Eliminar relaciones existentes
-                            _b.sent();
-                            if (!(regiones.length > 0)) return [3 /*break*/, 7];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_regiones.createMany({
-                                    data: regiones.map(function (regionId) { return ({
-                                        etapa_registro_id: etapaExistente_1.id,
-                                        region_id: regionId
-                                    }); })
-                                })];
+                            // Eliminar todas las relaciones geográficas existentes
+                            _c.sent();
+                            if (!(regiones && regiones.length > 0)) return [3 /*break*/, 11];
+                            comunaIds = extractComunaIdsFromNestedStructure(regiones);
+                            geographicalData = [];
+                            _i = 0, comunaIds_2 = comunaIds;
+                            _c.label = 6;
                         case 6:
-                            _b.sent();
-                            _b.label = 7;
+                            if (!(_i < comunaIds_2.length)) return [3 /*break*/, 9];
+                            comunaId = comunaIds_2[_i];
+                            return [4 /*yield*/, prisma_1.prisma.comunas.findUnique({
+                                    where: { id: comunaId },
+                                    include: {
+                                        provincia: {
+                                            include: {
+                                                region: true
+                                            }
+                                        }
+                                    }
+                                })];
                         case 7:
-                            if (!(provincias !== undefined)) return [3 /*break*/, 10];
-                            // Eliminar relaciones existentes
-                            return [4 /*yield*/, prisma_1.prisma.etapas_provincias.deleteMany({
-                                    where: { etapa_registro_id: etapaExistente_1.id }
-                                })];
+                            comuna = _c.sent();
+                            if (comuna) {
+                                geographicalData.push({
+                                    etapa_registro_id: etapaExistente.id,
+                                    region_id: comuna.provincia.region.id,
+                                    provincia_id: comuna.provincia.id,
+                                    comuna_id: comuna.id
+                                });
+                            }
+                            _c.label = 8;
                         case 8:
-                            // Eliminar relaciones existentes
-                            _b.sent();
-                            if (!(provincias.length > 0)) return [3 /*break*/, 10];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_provincias.createMany({
-                                    data: provincias.map(function (provinciaId) { return ({
-                                        etapa_registro_id: etapaExistente_1.id,
-                                        provincia_id: provinciaId
-                                    }); })
-                                })];
+                            _i++;
+                            return [3 /*break*/, 6];
                         case 9:
-                            _b.sent();
-                            _b.label = 10;
+                            if (!(geographicalData.length > 0)) return [3 /*break*/, 11];
+                            return [4 /*yield*/, prisma_1.prisma.etapas_geografia.createMany({
+                                    data: geographicalData
+                                })];
                         case 10:
-                            if (!(comunas !== undefined)) return [3 /*break*/, 13];
-                            // Eliminar relaciones existentes
-                            return [4 /*yield*/, prisma_1.prisma.etapas_comunas.deleteMany({
-                                    where: { etapa_registro_id: etapaExistente_1.id }
-                                })];
-                        case 11:
-                            // Eliminar relaciones existentes
-                            _b.sent();
-                            if (!(comunas.length > 0)) return [3 /*break*/, 13];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_comunas.createMany({
-                                    data: comunas.map(function (comunaId) { return ({
-                                        etapa_registro_id: etapaExistente_1.id,
-                                        comuna_id: comunaId
-                                    }); })
-                                })];
+                            _c.sent();
+                            _c.label = 11;
+                        case 11: return [3 /*break*/, 19];
                         case 12:
-                            _b.sent();
-                            _b.label = 13;
-                        case 13: return [3 /*break*/, 21];
-                        case 14:
                             // Si no existe, crear un nuevo registro
                             console.log("crear");
-                            regiones = etapas_registro.regiones, provincias = etapas_registro.provincias, comunas = etapas_registro.comunas, datosEtapa = __rest(etapas_registro, ["regiones", "provincias", "comunas"]);
+                            regiones = etapas_registro.regiones, datosEtapa = __rest(etapas_registro, ["regiones"]);
+                            etapaData = {
+                                proyecto_id: id,
+                                fecha_creacion: new Date(),
+                                fecha_actualizacion: new Date(),
+                                activa: true,
+                                usuario_creador: proyectoExistente.creado_por
+                            };
+                            // Agregar campos opcionales solo si existen
+                            if (datosEtapa.tipo_iniciativa_id)
+                                etapaData.tipo_iniciativa_id = datosEtapa.tipo_iniciativa_id;
+                            if (datosEtapa.tipo_obra_id)
+                                etapaData.tipo_obra_id = datosEtapa.tipo_obra_id;
+                            if (datosEtapa.volumen)
+                                etapaData.volumen = datosEtapa.volumen;
+                            if (datosEtapa.presupuesto_oficial)
+                                etapaData.presupuesto_oficial = datosEtapa.presupuesto_oficial;
+                            if (datosEtapa.valor_referencia)
+                                etapaData.valor_referencia = datosEtapa.valor_referencia;
+                            if (datosEtapa.bip)
+                                etapaData.bip = datosEtapa.bip;
+                            if (datosEtapa.fecha_llamado_licitacion)
+                                etapaData.fecha_llamado_licitacion = datosEtapa.fecha_llamado_licitacion;
+                            if (datosEtapa.fecha_recepcion_ofertas_tecnicas)
+                                etapaData.fecha_recepcion_ofertas_tecnicas = datosEtapa.fecha_recepcion_ofertas_tecnicas;
+                            if (datosEtapa.fecha_apertura_ofertas_economicas)
+                                etapaData.fecha_apertura_ofertas_economicas = datosEtapa.fecha_apertura_ofertas_economicas;
+                            if (datosEtapa.decreto_adjudicacion)
+                                etapaData.decreto_adjudicacion = datosEtapa.decreto_adjudicacion;
+                            if (datosEtapa.sociedad_concesionaria)
+                                etapaData.sociedad_concesionaria = datosEtapa.sociedad_concesionaria;
+                            if (datosEtapa.fecha_inicio_concesion)
+                                etapaData.fecha_inicio_concesion = datosEtapa.fecha_inicio_concesion;
+                            if (datosEtapa.plazo_total_concesion)
+                                etapaData.plazo_total_concesion = datosEtapa.plazo_total_concesion;
+                            if (datosEtapa.inspector_fiscal_id)
+                                etapaData.inspector_fiscal_id = datosEtapa.inspector_fiscal_id;
                             return [4 /*yield*/, prisma_1.prisma.etapas_registro.create({
-                                    data: __assign(__assign({}, datosEtapa), { proyecto_id: id, fecha_creacion: new Date(), fecha_actualizacion: new Date(), activa: true, usuario_creador: proyectoExistente.creado_por })
+                                    data: etapaData
+                                })];
+                        case 13:
+                            etapaCreada = _c.sent();
+                            if (!(regiones && regiones.length > 0)) return [3 /*break*/, 19];
+                            comunaIds = extractComunaIdsFromNestedStructure(regiones);
+                            geographicalData = [];
+                            _b = 0, comunaIds_3 = comunaIds;
+                            _c.label = 14;
+                        case 14:
+                            if (!(_b < comunaIds_3.length)) return [3 /*break*/, 17];
+                            comunaId = comunaIds_3[_b];
+                            return [4 /*yield*/, prisma_1.prisma.comunas.findUnique({
+                                    where: { id: comunaId },
+                                    include: {
+                                        provincia: {
+                                            include: {
+                                                region: true
+                                            }
+                                        }
+                                    }
                                 })];
                         case 15:
-                            etapaCreada_2 = _b.sent();
-                            if (!(regiones && regiones.length > 0)) return [3 /*break*/, 17];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_regiones.createMany({
-                                    data: regiones.map(function (regionId) { return ({
-                                        etapa_registro_id: etapaCreada_2.id,
-                                        region_id: regionId
-                                    }); })
-                                })];
+                            comuna = _c.sent();
+                            if (comuna) {
+                                geographicalData.push({
+                                    etapa_registro_id: etapaCreada.id,
+                                    region_id: comuna.provincia.region.id,
+                                    provincia_id: comuna.provincia.id,
+                                    comuna_id: comuna.id
+                                });
+                            }
+                            _c.label = 16;
                         case 16:
-                            _b.sent();
-                            _b.label = 17;
+                            _b++;
+                            return [3 /*break*/, 14];
                         case 17:
-                            if (!(provincias && provincias.length > 0)) return [3 /*break*/, 19];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_provincias.createMany({
-                                    data: provincias.map(function (provinciaId) { return ({
-                                        etapa_registro_id: etapaCreada_2.id,
-                                        provincia_id: provinciaId
-                                    }); })
+                            if (!(geographicalData.length > 0)) return [3 /*break*/, 19];
+                            return [4 /*yield*/, prisma_1.prisma.etapas_geografia.createMany({
+                                    data: geographicalData
                                 })];
                         case 18:
-                            _b.sent();
-                            _b.label = 19;
-                        case 19:
-                            if (!(comunas && comunas.length > 0)) return [3 /*break*/, 21];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_comunas.createMany({
-                                    data: comunas.map(function (comunaId) { return ({
-                                        etapa_registro_id: etapaCreada_2.id,
-                                        comuna_id: comunaId
-                                    }); })
-                                })];
-                        case 20:
-                            _b.sent();
-                            _b.label = 21;
-                        case 21: return [2 /*return*/, reply.status(200).send({
+                            _c.sent();
+                            _c.label = 19;
+                        case 19: return [2 /*return*/, reply.status(200).send({
                                 success: true,
                                 message: 'Proyecto actualizado exitosamente',
                                 data: {
@@ -858,8 +976,8 @@ function proyectosRoutes(fastify) {
                 .get('/proyectos/:id/carpetas', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Obtener carpetas del proyecto',
-                    description: 'Retorna la estructura de carpetas asociada a un proyecto específico, incluyendo carpetas padre e hijas con su información de organización.',
+                    summary: 'Obtener carpetas del proyecto padre',
+                    description: 'Retorna la estructura de carpetas asociada a un proyecto padre específico, incluyendo carpetas padre e hijas con su información de organización. Para proyectos padre, también incluye las carpetas de todos sus proyectos hijos. No permite obtener carpetas de proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -876,12 +994,14 @@ function proyectosRoutes(fastify) {
                                 orden_visualizacion: zod_1.default.number(),
                                 fecha_creacion: zod_1.default.date(),
                                 carpeta_padre_id: zod_1.default.number().nullable(),
+                                proyecto_id: zod_1.default.number(),
                                 carpetas_hijas: zod_1.default.array(zod_1.default.object({
                                     id: zod_1.default.number(),
                                     nombre: zod_1.default.string(),
                                     descripcion: zod_1.default.string().nullable(),
                                     s3_path: zod_1.default.string(),
-                                    orden_visualizacion: zod_1.default.number()
+                                    orden_visualizacion: zod_1.default.number(),
+                                    proyecto_id: zod_1.default.number()
                                 }))
                             }))
                         }),
@@ -898,14 +1018,18 @@ function proyectosRoutes(fastify) {
                         case 0:
                             id = request.params.id;
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
-                                    where: { id: id }
+                                    where: {
+                                        id: id,
+                                        // Solo permitir obtener carpetas de proyectos que NO son hijos
+                                        proyecto_padre_id: null
+                                    }
                                 })];
                         case 1:
                             proyecto = _a.sent();
                             if (!proyecto) {
                                 return [2 /*return*/, reply.status(404).send({
                                         success: false,
-                                        message: 'Proyecto no encontrado'
+                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
                                     })];
                             }
                             _a.label = 2;
@@ -916,7 +1040,7 @@ function proyectosRoutes(fastify) {
                             carpetas = _a.sent();
                             return [2 /*return*/, {
                                     success: true,
-                                    message: 'Carpetas del proyecto obtenidas exitosamente',
+                                    message: 'Carpetas del proyecto padre obtenidas exitosamente, incluyendo carpetas de proyectos hijos',
                                     data: carpetas
                                 }];
                         case 4:
@@ -933,8 +1057,8 @@ function proyectosRoutes(fastify) {
                 .patch('/proyectos/:id/cambiar-etapa', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Cambia la etapa activa de un proyecto',
-                    description: 'Cambia la etapa activa de un proyecto. Desactiva la etapa actual y activa la nueva etapa especificada. Incluye validación para asegurar que solo una etapa esté activa por proyecto.',
+                    summary: 'Cambia la etapa activa de un proyecto padre',
+                    description: 'Cambia la etapa activa de un proyecto padre. Desactiva la etapa actual y activa la nueva etapa especificada. Incluye validación para asegurar que solo una etapa esté activa por proyecto. No permite cambiar etapa en proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -942,10 +1066,16 @@ function proyectosRoutes(fastify) {
                         etapa_tipo_id: zod_1.default.number().int().min(1, 'ID de tipo de etapa es requerido'),
                         tipo_iniciativa_id: zod_1.default.number().int().min(1).optional(),
                         tipo_obra_id: zod_1.default.number().int().min(1).optional(),
-                        // Multiple regions, provinces, and communes
-                        regiones: zod_1.default.array(zod_1.default.number().int().min(1)).optional(),
-                        provincias: zod_1.default.array(zod_1.default.number().int().min(1)).optional(),
-                        comunas: zod_1.default.array(zod_1.default.number().int().min(1)).optional(),
+                        // Nested geographical structure
+                        regiones: zod_1.default.array(zod_1.default.object({
+                            id: zod_1.default.number(),
+                            provincias: zod_1.default.array(zod_1.default.object({
+                                id: zod_1.default.number(),
+                                comunas: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number()
+                                }))
+                            }))
+                        })).optional(),
                         volumen: zod_1.default.string().optional(),
                         presupuesto_oficial: zod_1.default.string().optional(),
                         valor_referencia: zod_1.default.string().max(255).optional(),
@@ -989,17 +1119,21 @@ function proyectosRoutes(fastify) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var id, body, proyecto, etapaTipo, etapaExistente, etapaActual, nuevaEtapa_1, proyectoInfo, projectFolderPath, etapaTipoFolders, carpetasTransversales, projectFolderPath, _i, carpetasTransversales_2, carpetaTransversal, subcarpetas, subfolderError_2, folderError_2, error_3;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
+                var id, body, proyecto, etapaTipo, etapaExistente, etapaActual, nuevaEtapa, comunaIds, geographicalData, _i, comunaIds_4, comunaId, comuna, proyectoInfo, projectFolderPath, etapaTipoFolders, carpetasTransversales, _a, carpetasTransversales_2, carpetaTransversal, subcarpetas, subfolderError_2, folderError_2, error_3;
+                return __generator(this, function (_b) {
+                    switch (_b.label) {
                         case 0:
                             id = request.params.id;
                             body = request.body;
-                            _a.label = 1;
+                            _b.label = 1;
                         case 1:
-                            _a.trys.push([1, 32, , 33]);
+                            _b.trys.push([1, 35, , 36]);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
-                                    where: { id: id },
+                                    where: {
+                                        id: id,
+                                        // Solo permitir cambiar etapa en proyectos que NO son hijos
+                                        proyecto_padre_id: null
+                                    },
                                     include: {
                                         etapas_registro: {
                                             where: { activa: true },
@@ -1010,11 +1144,11 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 2:
-                            proyecto = _a.sent();
+                            proyecto = _b.sent();
                             if (!proyecto) {
                                 return [2 /*return*/, reply.status(404).send({
                                         success: false,
-                                        message: 'Proyecto no encontrado'
+                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
                                     })];
                             }
                             return [4 /*yield*/, prisma_1.prisma.etapas_tipo.findUnique({
@@ -1026,7 +1160,7 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 3:
-                            etapaTipo = _a.sent();
+                            etapaTipo = _b.sent();
                             if (!etapaTipo) {
                                 return [2 /*return*/, reply.status(400).send({
                                         success: false,
@@ -1040,7 +1174,7 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 4:
-                            etapaExistente = _a.sent();
+                            etapaExistente = _b.sent();
                             if (etapaExistente) {
                                 return [2 /*return*/, reply.status(400).send({
                                         success: false,
@@ -1054,31 +1188,10 @@ function proyectosRoutes(fastify) {
                                     data: { activa: false }
                                 })];
                         case 5:
-                            _a.sent();
-                            _a.label = 6;
+                            _b.sent();
+                            _b.label = 6;
                         case 6: return [4 /*yield*/, prisma_1.prisma.etapas_registro.create({
-                                data: {
-                                    etapa_tipo_id: body.etapa_tipo_id,
-                                    proyecto_id: id,
-                                    tipo_iniciativa_id: body.tipo_iniciativa_id,
-                                    tipo_obra_id: body.tipo_obra_id,
-                                    volumen: body.volumen,
-                                    presupuesto_oficial: body.presupuesto_oficial,
-                                    valor_referencia: body.valor_referencia,
-                                    bip: body.bip,
-                                    fecha_llamado_licitacion: body.fecha_llamado_licitacion ? new Date(body.fecha_llamado_licitacion) : null,
-                                    fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas ? new Date(body.fecha_recepcion_ofertas_tecnicas) : null,
-                                    fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas ? new Date(body.fecha_apertura_ofertas_economicas) : null,
-                                    decreto_adjudicacion: body.decreto_adjudicacion,
-                                    sociedad_concesionaria: body.sociedad_concesionaria,
-                                    fecha_inicio_concesion: body.fecha_inicio_concesion ? new Date(body.fecha_inicio_concesion) : null,
-                                    plazo_total_concesion: body.plazo_total_concesion,
-                                    inspector_fiscal_id: body.inspector_fiscal_id,
-                                    fecha_creacion: new Date(),
-                                    fecha_actualizacion: new Date(),
-                                    activa: true,
-                                    usuario_creador: body.usuario_creador
-                                },
+                                data: __assign(__assign({ etapa_tipo_id: body.etapa_tipo_id, proyecto_id: id, tipo_iniciativa_id: body.tipo_iniciativa_id, tipo_obra_id: body.tipo_obra_id, volumen: body.volumen, presupuesto_oficial: body.presupuesto_oficial, valor_referencia: body.valor_referencia, bip: body.bip, fecha_llamado_licitacion: body.fecha_llamado_licitacion ? new Date(body.fecha_llamado_licitacion) : null, fecha_recepcion_ofertas_tecnicas: body.fecha_recepcion_ofertas_tecnicas ? new Date(body.fecha_recepcion_ofertas_tecnicas) : null, fecha_apertura_ofertas_economicas: body.fecha_apertura_ofertas_economicas ? new Date(body.fecha_apertura_ofertas_economicas) : null, decreto_adjudicacion: body.decreto_adjudicacion, sociedad_concesionaria: body.sociedad_concesionaria, fecha_inicio_concesion: body.fecha_inicio_concesion ? new Date(body.fecha_inicio_concesion) : null, plazo_total_concesion: body.plazo_total_concesion }, (body.inspector_fiscal_id && { inspector_fiscal_id: body.inspector_fiscal_id })), { fecha_creacion: new Date(), fecha_actualizacion: new Date(), activa: true, usuario_creador: body.usuario_creador }),
                                 include: {
                                     etapa_tipo: {
                                         select: {
@@ -1092,42 +1205,51 @@ function proyectosRoutes(fastify) {
                                 }
                             })];
                         case 7:
-                            nuevaEtapa_1 = _a.sent();
-                            if (!(body.regiones && body.regiones.length > 0)) return [3 /*break*/, 9];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_regiones.createMany({
-                                    data: body.regiones.map(function (regionId) { return ({
-                                        etapa_registro_id: nuevaEtapa_1.id,
-                                        region_id: regionId
-                                    }); })
-                                })];
+                            nuevaEtapa = _b.sent();
+                            if (!(body.regiones && body.regiones.length > 0)) return [3 /*break*/, 13];
+                            comunaIds = extractComunaIdsFromNestedStructure(body.regiones);
+                            geographicalData = [];
+                            _i = 0, comunaIds_4 = comunaIds;
+                            _b.label = 8;
                         case 8:
-                            _a.sent();
-                            _a.label = 9;
-                        case 9:
-                            if (!(body.provincias && body.provincias.length > 0)) return [3 /*break*/, 11];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_provincias.createMany({
-                                    data: body.provincias.map(function (provinciaId) { return ({
-                                        etapa_registro_id: nuevaEtapa_1.id,
-                                        provincia_id: provinciaId
-                                    }); })
+                            if (!(_i < comunaIds_4.length)) return [3 /*break*/, 11];
+                            comunaId = comunaIds_4[_i];
+                            return [4 /*yield*/, prisma_1.prisma.comunas.findUnique({
+                                    where: { id: comunaId },
+                                    include: {
+                                        provincia: {
+                                            include: {
+                                                region: true
+                                            }
+                                        }
+                                    }
                                 })];
+                        case 9:
+                            comuna = _b.sent();
+                            if (comuna) {
+                                geographicalData.push({
+                                    etapa_registro_id: nuevaEtapa.id,
+                                    region_id: comuna.provincia.region.id,
+                                    provincia_id: comuna.provincia.id,
+                                    comuna_id: comuna.id,
+                                });
+                            }
+                            _b.label = 10;
                         case 10:
-                            _a.sent();
-                            _a.label = 11;
+                            _i++;
+                            return [3 /*break*/, 8];
                         case 11:
-                            if (!(body.comunas && body.comunas.length > 0)) return [3 /*break*/, 13];
-                            return [4 /*yield*/, prisma_1.prisma.etapas_comunas.createMany({
-                                    data: body.comunas.map(function (comunaId) { return ({
-                                        etapa_registro_id: nuevaEtapa_1.id,
-                                        comuna_id: comunaId
-                                    }); })
+                            if (!(geographicalData.length > 0)) return [3 /*break*/, 13];
+                            return [4 /*yield*/, prisma_1.prisma.etapas_geografia.createMany({
+                                    data: geographicalData,
+                                    skipDuplicates: true,
                                 })];
                         case 12:
-                            _a.sent();
-                            _a.label = 13;
+                            _b.sent();
+                            _b.label = 13;
                         case 13:
-                            _a.trys.push([13, 30, , 31]);
-                            console.log('Creating initial folders for new etapa:', nuevaEtapa_1.etapa_tipo.nombre);
+                            _b.trys.push([13, 33, , 34]);
+                            console.log('Creating initial folders for new etapa:', nuevaEtapa.etapa_tipo.nombre);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
                                     where: { id: id },
                                     select: {
@@ -1136,30 +1258,32 @@ function proyectosRoutes(fastify) {
                                     }
                                 })];
                         case 14:
-                            proyectoInfo = _a.sent();
-                            if (!(proyectoInfo && nuevaEtapa_1.etapa_tipo.carpetas_iniciales)) return [3 /*break*/, 18];
-                            console.log('Etapa tipo carpetas_iniciales found:', JSON.stringify(nuevaEtapa_1.etapa_tipo.carpetas_iniciales, null, 2));
+                            proyectoInfo = _b.sent();
+                            projectFolderPath = null;
+                            if (!(proyectoInfo && nuevaEtapa.etapa_tipo.carpetas_iniciales)) return [3 /*break*/, 18];
+                            console.log('Etapa tipo carpetas_iniciales found:', JSON.stringify(nuevaEtapa.etapa_tipo.carpetas_iniciales, null, 2));
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createProjectFolder(proyectoInfo.nombre, id)];
                         case 15:
-                            projectFolderPath = _a.sent();
+                            // Crear la ruta base del proyecto en MinIO
+                            projectFolderPath = _b.sent();
                             // Crear carpetas en MinIO
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createEtapaTipoFolders(projectFolderPath, {
-                                    carpetas_iniciales: nuevaEtapa_1.etapa_tipo.carpetas_iniciales
+                                    carpetas_iniciales: nuevaEtapa.etapa_tipo.carpetas_iniciales
                                 })];
                         case 16:
                             // Crear carpetas en MinIO
-                            _a.sent();
-                            console.log('Etapa tipo folders created successfully in MinIO for new etapa:', nuevaEtapa_1.etapa_tipo.nombre);
+                            _b.sent();
+                            console.log('Etapa tipo folders created successfully in MinIO for new etapa:', nuevaEtapa.etapa_tipo.nombre);
                             return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createEtapaTipoFoldersDB(id, projectFolderPath, {
-                                    carpetas_iniciales: nuevaEtapa_1.etapa_tipo.carpetas_iniciales
+                                    carpetas_iniciales: nuevaEtapa.etapa_tipo.carpetas_iniciales
                                 }, body.usuario_creador, proyectoInfo.carpeta_raiz_id, body.etapa_tipo_id)];
                         case 17:
-                            etapaTipoFolders = _a.sent();
-                            console.log("Etapa tipo folders DB records created successfully for new etapa: ".concat(nuevaEtapa_1.etapa_tipo.nombre, ". Created ").concat(etapaTipoFolders.length, " folders with S3 data."));
+                            etapaTipoFolders = _b.sent();
+                            console.log("Etapa tipo folders DB records created successfully for new etapa: ".concat(nuevaEtapa.etapa_tipo.nombre, ". Created ").concat(etapaTipoFolders.length, " folders with S3 data."));
                             return [3 /*break*/, 19];
                         case 18:
                             console.log('No carpetas_iniciales found for new etapa_tipo_id:', body.etapa_tipo_id);
-                            _a.label = 19;
+                            _b.label = 19;
                         case 19: return [4 /*yield*/, prisma_1.prisma.carpetas_transversales.findMany({
                                 where: {
                                     etapa_tipo_id: body.etapa_tipo_id,
@@ -1170,53 +1294,61 @@ function proyectosRoutes(fastify) {
                                 }
                             })];
                         case 20:
-                            carpetasTransversales = _a.sent();
-                            if (!(carpetasTransversales && carpetasTransversales.length > 0)) return [3 /*break*/, 29];
-                            console.log("Creating ".concat(carpetasTransversales.length, " transverse folders for new etapa: ").concat(nuevaEtapa_1.etapa_tipo.nombre));
+                            carpetasTransversales = _b.sent();
+                            if (!(carpetasTransversales && carpetasTransversales.length > 0)) return [3 /*break*/, 32];
+                            console.log("Creating ".concat(carpetasTransversales.length, " transverse folders for new etapa: ").concat(nuevaEtapa.etapa_tipo.nombre));
+                            if (!!projectFolderPath) return [3 /*break*/, 22];
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createProjectFolder(proyectoInfo.nombre, id)];
                         case 21:
-                            projectFolderPath = _a.sent();
-                            _i = 0, carpetasTransversales_2 = carpetasTransversales;
-                            _a.label = 22;
+                            projectFolderPath = _b.sent();
+                            _b.label = 22;
                         case 22:
-                            if (!(_i < carpetasTransversales_2.length)) return [3 /*break*/, 28];
-                            carpetaTransversal = carpetasTransversales_2[_i];
-                            if (!(carpetaTransversal.estructura_carpetas && typeof carpetaTransversal.estructura_carpetas === 'object')) return [3 /*break*/, 27];
+                            if (!projectFolderPath) return [3 /*break*/, 30];
+                            _a = 0, carpetasTransversales_2 = carpetasTransversales;
+                            _b.label = 23;
+                        case 23:
+                            if (!(_a < carpetasTransversales_2.length)) return [3 /*break*/, 29];
+                            carpetaTransversal = carpetasTransversales_2[_a];
+                            if (!(carpetaTransversal.estructura_carpetas && typeof carpetaTransversal.estructura_carpetas === 'object')) return [3 /*break*/, 28];
                             console.log("Creating transverse subfolders for: ".concat(carpetaTransversal.nombre));
                             console.log('Estructura carpetas:', JSON.stringify(carpetaTransversal.estructura_carpetas, null, 2));
-                            _a.label = 23;
-                        case 23:
-                            _a.trys.push([23, 26, , 27]);
+                            _b.label = 24;
+                        case 24:
+                            _b.trys.push([24, 27, , 28]);
                             // Crear las subcarpetas directamente en la raíz del proyecto en MinIO
                             return [4 /*yield*/, minio_utils_1.MinIOUtils.createNestedFolderStructure(projectFolderPath, carpetaTransversal.estructura_carpetas)];
-                        case 24:
+                        case 25:
                             // Crear las subcarpetas directamente en la raíz del proyecto en MinIO
-                            _a.sent();
+                            _b.sent();
                             console.log("Transverse subfolders created successfully in MinIO for: ".concat(carpetaTransversal.nombre));
                             return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createNestedFolderStructureDB(id, projectFolderPath, carpetaTransversal.estructura_carpetas, body.usuario_creador, proyectoInfo.carpeta_raiz_id, // carpeta_padre_id será la carpeta raíz del proyecto
                                 body.etapa_tipo_id, 'Carpeta transversal del proyecto', // descripción específica para carpetas transversales
                                 carpetaTransversal.id // carpeta_transversal_id para las subcarpetas
                                 )];
-                        case 25:
-                            subcarpetas = _a.sent();
-                            console.log("Transverse subfolders DB records created successfully for: ".concat(carpetaTransversal.nombre, ". Created ").concat(subcarpetas.length, " subfolders."));
-                            return [3 /*break*/, 27];
                         case 26:
-                            subfolderError_2 = _a.sent();
-                            console.error("Error creating transverse subfolders for ".concat(carpetaTransversal.nombre, ":"), subfolderError_2);
-                            return [3 /*break*/, 27];
+                            subcarpetas = _b.sent();
+                            console.log("Transverse subfolders DB records created successfully for: ".concat(carpetaTransversal.nombre, ". Created ").concat(subcarpetas.length, " subfolders."));
+                            return [3 /*break*/, 28];
                         case 27:
-                            _i++;
-                            return [3 /*break*/, 22];
+                            subfolderError_2 = _b.sent();
+                            console.error("Error creating transverse subfolders for ".concat(carpetaTransversal.nombre, ":"), subfolderError_2);
+                            return [3 /*break*/, 28];
                         case 28:
-                            console.log("Transverse folders created successfully for new etapa: ".concat(nuevaEtapa_1.etapa_tipo.nombre));
-                            _a.label = 29;
+                            _a++;
+                            return [3 /*break*/, 23];
                         case 29: return [3 /*break*/, 31];
                         case 30:
-                            folderError_2 = _a.sent();
+                            console.warn('Cannot create transverse folders: project folder path was not created successfully');
+                            _b.label = 31;
+                        case 31:
+                            console.log("Transverse folders created successfully for new etapa: ".concat(nuevaEtapa.etapa_tipo.nombre));
+                            _b.label = 32;
+                        case 32: return [3 /*break*/, 34];
+                        case 33:
+                            folderError_2 = _b.sent();
                             console.error('Error creating etapa tipo folders for new etapa:', folderError_2);
-                            return [3 /*break*/, 31];
-                        case 31: return [2 /*return*/, reply.status(200).send({
+                            return [3 /*break*/, 34];
+                        case 34: return [2 /*return*/, reply.status(200).send({
                                 success: true,
                                 message: 'Etapa del proyecto cambiada exitosamente',
                                 data: {
@@ -1227,28 +1359,28 @@ function proyectosRoutes(fastify) {
                                         nombre_etapa: etapaActual.etapa_tipo.nombre
                                     } : null,
                                     etapa_nueva: {
-                                        id: nuevaEtapa_1.id,
-                                        etapa_tipo_id: nuevaEtapa_1.etapa_tipo_id,
-                                        nombre_etapa: nuevaEtapa_1.etapa_tipo.nombre
+                                        id: nuevaEtapa.id,
+                                        etapa_tipo_id: nuevaEtapa.etapa_tipo_id,
+                                        nombre_etapa: nuevaEtapa.etapa_tipo.nombre
                                     }
                                 }
                             })];
-                        case 32:
-                            error_3 = _a.sent();
+                        case 35:
+                            error_3 = _b.sent();
                             console.error('Error changing project stage:', error_3);
                             return [2 /*return*/, reply.status(500).send({
                                     success: false,
                                     message: 'Error al cambiar la etapa del proyecto'
                                 })];
-                        case 33: return [2 /*return*/];
+                        case 36: return [2 /*return*/];
                     }
                 });
             }); })
                 .get('/proyectos/:id/etapa-actual', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Obtener la etapa actual del proyecto',
-                    description: 'Retorna la información completa de la etapa actualmente activa del proyecto, incluyendo todos los datos de la etapa y sus relaciones.',
+                    summary: 'Obtener la etapa actual del proyecto padre',
+                    description: 'Retorna la información completa de la etapa actualmente activa del proyecto padre, incluyendo todos los datos de la etapa y sus relaciones. No permite obtener etapa actual de proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -1275,20 +1407,24 @@ function proyectosRoutes(fastify) {
                                         id: zod_1.default.number(),
                                         nombre: zod_1.default.string()
                                     }).nullable(),
-                                    // Hierarchical geographical data
-                                    regiones: zod_1.default.array(zod_1.default.object({
+                                    // Deeply nested hierarchical geographical data
+                                    etapas_regiones: zod_1.default.array(zod_1.default.object({
                                         id: zod_1.default.number(),
                                         codigo: zod_1.default.string(),
                                         nombre: zod_1.default.string(),
                                         nombre_corto: zod_1.default.string().nullable(),
-                                        provincias: zod_1.default.array(zod_1.default.object({
-                                            id: zod_1.default.number(),
-                                            codigo: zod_1.default.string(),
-                                            nombre: zod_1.default.string(),
-                                            comunas: zod_1.default.array(zod_1.default.object({
+                                        etapas_provincias: zod_1.default.array(zod_1.default.object({
+                                            provincia: zod_1.default.object({
                                                 id: zod_1.default.number(),
-                                                nombre: zod_1.default.string()
-                                            }))
+                                                codigo: zod_1.default.string(),
+                                                nombre: zod_1.default.string(),
+                                                etapas_comunas: zod_1.default.array(zod_1.default.object({
+                                                    comuna: zod_1.default.object({
+                                                        id: zod_1.default.number(),
+                                                        nombre: zod_1.default.string()
+                                                    })
+                                                }))
+                                            })
                                         }))
                                     })),
                                     volumen: zod_1.default.string().nullable(),
@@ -1326,14 +1462,18 @@ function proyectosRoutes(fastify) {
                         case 1:
                             _a.trys.push([1, 4, , 5]);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
-                                    where: { id: id }
+                                    where: {
+                                        id: id,
+                                        // Solo permitir obtener etapa actual de proyectos que NO son hijos
+                                        proyecto_padre_id: null
+                                    }
                                 })];
                         case 2:
                             proyecto = _a.sent();
                             if (!proyecto) {
                                 return [2 /*return*/, reply.status(404).send({
                                         success: false,
-                                        message: 'Proyecto no encontrado'
+                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
                                     })];
                             }
                             return [4 /*yield*/, prisma_1.prisma.etapas_registro.findFirst({
@@ -1352,28 +1492,28 @@ function proyectosRoutes(fastify) {
                                         },
                                         tipo_iniciativa: true,
                                         tipo_obra: true,
-                                        // Include multiple regions, provinces, and communes
-                                        etapas_regiones: {
+                                        // Include unified geographical data
+                                        etapas_geografia: {
                                             include: {
                                                 region: {
                                                     select: {
                                                         id: true,
                                                         codigo: true,
                                                         nombre: true,
-                                                        nombre_corto: true,
-                                                        provincias: {
-                                                            select: {
-                                                                id: true,
-                                                                codigo: true,
-                                                                nombre: true,
-                                                                comunas: {
-                                                                    select: {
-                                                                        id: true,
-                                                                        nombre: true
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
+                                                        nombre_corto: true
+                                                    }
+                                                },
+                                                provincia: {
+                                                    select: {
+                                                        id: true,
+                                                        codigo: true,
+                                                        nombre: true
+                                                    }
+                                                },
+                                                comuna: {
+                                                    select: {
+                                                        id: true,
+                                                        nombre: true
                                                     }
                                                 }
                                             }
@@ -1389,11 +1529,7 @@ function proyectosRoutes(fastify) {
                                 })];
                         case 3:
                             etapaActual = _a.sent();
-                            transformedEtapaActual = etapaActual ? __assign(__assign({}, etapaActual), { 
-                                // Extract hierarchical regions with their provinces and communes
-                                regiones: etapaActual.etapas_regiones.map(function (er) { return er.region; }), 
-                                // Remove the relationship tables from the response
-                                etapas_regiones: undefined }) : null;
+                            transformedEtapaActual = etapaActual ? __assign(__assign({}, etapaActual), { etapas_regiones: transformGeographicalData(etapaActual.etapas_geografia) }) : null;
                             return [2 /*return*/, {
                                     success: true,
                                     message: 'Etapa actual del proyecto obtenida exitosamente',
@@ -1416,8 +1552,8 @@ function proyectosRoutes(fastify) {
                 .delete('/proyectos/:id', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Eliminar proyecto (soft delete)',
-                    description: 'Realiza un soft delete del proyecto marcándolo como eliminado sin borrar físicamente los datos. El proyecto y sus datos asociados permanecen en la base de datos pero no aparecen en las consultas normales.',
+                    summary: 'Eliminar proyecto padre (soft delete)',
+                    description: 'Realiza un soft delete del proyecto padre marcándolo como eliminado sin borrar físicamente los datos. El proyecto y sus datos asociados permanecen en la base de datos pero no aparecen en las consultas normales. No permite eliminar proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -1457,7 +1593,11 @@ function proyectosRoutes(fastify) {
                         case 1:
                             _b.trys.push([1, 7, , 8]);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
-                                    where: { id: id },
+                                    where: {
+                                        id: id,
+                                        // Solo permitir eliminar proyectos que NO son hijos
+                                        proyecto_padre_id: null
+                                    },
                                     include: {
                                         etapas_registro: {
                                             where: { activa: true },
@@ -1472,7 +1612,7 @@ function proyectosRoutes(fastify) {
                             if (!proyecto) {
                                 return [2 /*return*/, reply.status(404).send({
                                         success: false,
-                                        message: 'Proyecto no encontrado'
+                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
                                     })];
                             }
                             if (proyecto.eliminado) {
@@ -1541,8 +1681,8 @@ function proyectosRoutes(fastify) {
                 .patch('/proyectos/:id/restaurar', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Restaurar proyecto eliminado',
-                    description: 'Restaura un proyecto que ha sido eliminado mediante soft delete, marcándolo como activo nuevamente.',
+                    summary: 'Restaurar proyecto padre eliminado',
+                    description: 'Restaura un proyecto padre que ha sido eliminado mediante soft delete, marcándolo como activo nuevamente. No permite restaurar proyectos hijos.',
                     params: zod_1.default.object({
                         id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
                     }),
@@ -1582,14 +1722,18 @@ function proyectosRoutes(fastify) {
                         case 1:
                             _b.trys.push([1, 5, , 6]);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
-                                    where: { id: id }
+                                    where: {
+                                        id: id,
+                                        // Solo permitir restaurar proyectos que NO son hijos
+                                        proyecto_padre_id: null
+                                    }
                                 })];
                         case 2:
                             proyecto = _b.sent();
                             if (!proyecto) {
                                 return [2 /*return*/, reply.status(404).send({
                                         success: false,
-                                        message: 'Proyecto no encontrado'
+                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
                                     })];
                             }
                             if (!proyecto.eliminado) {
@@ -1642,8 +1786,8 @@ function proyectosRoutes(fastify) {
                 .get('/proyectos/eliminados', {
                 schema: {
                     tags: ['Proyectos'],
-                    summary: 'Obtener lista de proyectos eliminados',
-                    description: 'Retorna una lista de todos los proyectos que han sido eliminados mediante soft delete.',
+                    summary: 'Obtener lista de proyectos padre eliminados',
+                    description: 'Retorna una lista de todos los proyectos padre que han sido eliminados mediante soft delete (no incluye proyectos hijos eliminados).',
                     response: {
                         200: zod_1.default.object({
                             success: zod_1.default.boolean(),
@@ -1667,7 +1811,9 @@ function proyectosRoutes(fastify) {
                     switch (_a.label) {
                         case 0: return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
                                 where: {
-                                    eliminado: true
+                                    eliminado: true,
+                                    // Solo mostrar proyectos padre eliminados (no proyectos hijos eliminados)
+                                    proyecto_padre_id: null
                                 },
                                 select: {
                                     id: true,
@@ -1692,6 +1838,807 @@ function proyectosRoutes(fastify) {
                                     message: 'Lista de proyectos eliminados obtenida exitosamente',
                                     data: proyectosEliminados
                                 }];
+                    }
+                });
+            }); })
+                .post('/proyectos/padre', {
+                schema: {
+                    tags: ['Proyectos'],
+                    summary: 'Crear un proyecto padre',
+                    description: 'Crea un nuevo proyecto padre que puede contener proyectos hijos. El proyecto padre se crea como carpeta en MinIO y puede asignar proyectos hijos existentes opcionalmente.',
+                    body: zod_1.default.object({
+                        nombre: zod_1.default.string().max(255),
+                        division_id: zod_1.default.number().optional(),
+                        departamento_id: zod_1.default.number().optional(),
+                        unidad_id: zod_1.default.number().optional(),
+                        creado_por: zod_1.default.number(),
+                        proyectos_hijos_ids: zod_1.default.array(zod_1.default.number()).optional()
+                    }),
+                    response: {
+                        201: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string(),
+                            data: zod_1.default.object({
+                                id: zod_1.default.number(),
+                                nombre: zod_1.default.string(),
+                                es_proyecto_padre: zod_1.default.boolean(),
+                                proyectos_hijos: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string()
+                                }))
+                            })
+                        }),
+                        400: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        }),
+                        404: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        })
+                    }
+                }
+            }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
+                var _a, proyectos_hijos_ids, datosProyecto, usuario, proyectosHijos, proyectosPadre, proyectosConPadre, proyectoPadre, projectFolderPath, carpetaRaiz, folderError_3, proyectosHijosAsignados, _i, proyectos_hijos_ids_1, proyectoHijoId, proyectoHijo, oldPath, newPath, moveError_1, error_7;
+                return __generator(this, function (_b) {
+                    switch (_b.label) {
+                        case 0:
+                            _a = request.body, proyectos_hijos_ids = _a.proyectos_hijos_ids, datosProyecto = __rest(_a, ["proyectos_hijos_ids"]);
+                            _b.label = 1;
+                        case 1:
+                            _b.trys.push([1, 28, , 29]);
+                            return [4 /*yield*/, prisma_1.prisma.usuarios.findUnique({
+                                    where: { id: datosProyecto.creado_por }
+                                })];
+                        case 2:
+                            usuario = _b.sent();
+                            if (!usuario) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: 'Usuario creador no encontrado'
+                                    })];
+                            }
+                            if (!(proyectos_hijos_ids && proyectos_hijos_ids.length > 0)) return [3 /*break*/, 4];
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                    where: {
+                                        id: { in: proyectos_hijos_ids },
+                                        eliminado: false
+                                    },
+                                    select: {
+                                        id: true,
+                                        nombre: true,
+                                        es_proyecto_padre: true,
+                                        proyecto_padre_id: true
+                                    }
+                                })];
+                        case 3:
+                            proyectosHijos = _b.sent();
+                            if (proyectosHijos.length !== proyectos_hijos_ids.length) {
+                                return [2 /*return*/, reply.status(404).send({
+                                        success: false,
+                                        message: 'Uno o más proyectos hijos no encontrados'
+                                    })];
+                            }
+                            proyectosPadre = proyectosHijos.filter(function (p) { return p.es_proyecto_padre; });
+                            if (proyectosPadre.length > 0) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: "Los siguientes proyectos son proyectos padre y no pueden ser hijos: ".concat(proyectosPadre.map(function (p) { return p.nombre; }).join(', '))
+                                    })];
+                            }
+                            proyectosConPadre = proyectosHijos.filter(function (p) { return p.proyecto_padre_id !== null; });
+                            if (proyectosConPadre.length > 0) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: "Los siguientes proyectos ya tienen un proyecto padre: ".concat(proyectosConPadre.map(function (p) { return p.nombre; }).join(', '))
+                                    })];
+                            }
+                            _b.label = 4;
+                        case 4: return [4 /*yield*/, prisma_1.prisma.proyectos.create({
+                                data: {
+                                    nombre: datosProyecto.nombre,
+                                    division_id: datosProyecto.division_id,
+                                    departamento_id: datosProyecto.departamento_id,
+                                    unidad_id: datosProyecto.unidad_id,
+                                    creado_por: datosProyecto.creado_por,
+                                    es_proyecto_padre: true
+                                }
+                            })];
+                        case 5:
+                            proyectoPadre = _b.sent();
+                            projectFolderPath = null;
+                            carpetaRaiz = null;
+                            _b.label = 6;
+                        case 6:
+                            _b.trys.push([6, 9, , 10]);
+                            return [4 /*yield*/, minio_utils_1.MinIOUtils.createProjectFolder(proyectoPadre.nombre, proyectoPadre.id)];
+                        case 7:
+                            projectFolderPath = _b.sent();
+                            console.log("Project parent folder created in MinIO: ".concat(projectFolderPath));
+                            return [4 /*yield*/, carpeta_db_utils_1.CarpetaDBUtils.createProjectRootFolder(proyectoPadre.id, proyectoPadre.nombre, projectFolderPath, datosProyecto.creado_por)];
+                        case 8:
+                            // Crear registro de carpeta raíz en la base de datos
+                            carpetaRaiz = _b.sent();
+                            return [3 /*break*/, 10];
+                        case 9:
+                            folderError_3 = _b.sent();
+                            console.error('Error creating project parent folders:', folderError_3);
+                            return [3 /*break*/, 10];
+                        case 10:
+                            proyectosHijosAsignados = [];
+                            if (!(proyectos_hijos_ids && proyectos_hijos_ids.length > 0)) return [3 /*break*/, 27];
+                            // Actualizar los proyectos hijos para asignarlos al proyecto padre
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.updateMany({
+                                    where: {
+                                        id: { in: proyectos_hijos_ids }
+                                    },
+                                    data: {
+                                        proyecto_padre_id: proyectoPadre.id
+                                    }
+                                })];
+                        case 11:
+                            // Actualizar los proyectos hijos para asignarlos al proyecto padre
+                            _b.sent();
+                            if (!projectFolderPath) return [3 /*break*/, 24];
+                            _i = 0, proyectos_hijos_ids_1 = proyectos_hijos_ids;
+                            _b.label = 12;
+                        case 12:
+                            if (!(_i < proyectos_hijos_ids_1.length)) return [3 /*break*/, 23];
+                            proyectoHijoId = proyectos_hijos_ids_1[_i];
+                            _b.label = 13;
+                        case 13:
+                            _b.trys.push([13, 21, , 22]);
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
+                                    where: { id: proyectoHijoId },
+                                    include: {
+                                        carpeta_raiz: true
+                                    }
+                                })];
+                        case 14:
+                            proyectoHijo = _b.sent();
+                            console.log("proyectoHijo");
+                            console.log(proyectoHijo);
+                            console.log(proyectoHijo.carpeta_raiz);
+                            if (!(proyectoHijo && proyectoHijo.carpeta_raiz)) return [3 /*break*/, 20];
+                            oldPath = proyectoHijo.carpeta_raiz.s3_path;
+                            newPath = "".concat(projectFolderPath, "/").concat(proyectoHijo.nombre);
+                            // Mover la carpeta en MinIO
+                            return [4 /*yield*/, minio_utils_1.MinIOUtils.moveFolder(oldPath, newPath)];
+                        case 15:
+                            // Mover la carpeta en MinIO
+                            _b.sent();
+                            if (!carpetaRaiz) return [3 /*break*/, 17];
+                            return [4 /*yield*/, prisma_1.prisma.carpetas.update({
+                                    where: { id: proyectoHijo.carpeta_raiz.id },
+                                    data: {
+                                        s3_path: newPath,
+                                        carpeta_padre_id: carpetaRaiz.id
+                                    }
+                                })];
+                        case 16:
+                            _b.sent();
+                            return [3 /*break*/, 19];
+                        case 17: 
+                        // Si no se pudo crear la carpeta raíz, solo actualizar la ruta
+                        return [4 /*yield*/, prisma_1.prisma.carpetas.update({
+                                where: { id: proyectoHijo.carpeta_raiz.id },
+                                data: { s3_path: newPath }
+                            })];
+                        case 18:
+                            // Si no se pudo crear la carpeta raíz, solo actualizar la ruta
+                            _b.sent();
+                            _b.label = 19;
+                        case 19:
+                            console.log("Moved project ".concat(proyectoHijo.nombre, " from ").concat(oldPath, " to ").concat(newPath));
+                            _b.label = 20;
+                        case 20: return [3 /*break*/, 22];
+                        case 21:
+                            moveError_1 = _b.sent();
+                            console.error("Error moving project ".concat(proyectoHijoId, ":"), moveError_1);
+                            return [3 /*break*/, 22];
+                        case 22:
+                            _i++;
+                            return [3 /*break*/, 12];
+                        case 23: return [3 /*break*/, 25];
+                        case 24:
+                            console.warn('Cannot move child project folders: parent project folder was not created successfully');
+                            _b.label = 25;
+                        case 25: return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                where: {
+                                    id: { in: proyectos_hijos_ids }
+                                },
+                                select: {
+                                    id: true,
+                                    nombre: true
+                                }
+                            })];
+                        case 26:
+                            // Obtener los proyectos hijos actualizados
+                            proyectosHijosAsignados = _b.sent();
+                            _b.label = 27;
+                        case 27: return [2 /*return*/, reply.status(201).send({
+                                success: true,
+                                message: 'Proyecto padre creado exitosamente',
+                                data: {
+                                    id: proyectoPadre.id,
+                                    nombre: proyectoPadre.nombre,
+                                    es_proyecto_padre: proyectoPadre.es_proyecto_padre,
+                                    proyectos_hijos: proyectosHijosAsignados
+                                }
+                            })];
+                        case 28:
+                            error_7 = _b.sent();
+                            console.error('Error creating parent project:', error_7);
+                            return [2 /*return*/, reply.status(500).send({
+                                    success: false,
+                                    message: 'Error al crear el proyecto padre'
+                                })];
+                        case 29: return [2 /*return*/];
+                    }
+                });
+            }); })
+                .post('/proyectos/:id/asignar-hijos', {
+                schema: {
+                    tags: ['Proyectos'],
+                    summary: 'Asignar proyectos hijos a un proyecto padre',
+                    description: 'Asigna proyectos hijos existentes a un proyecto padre. Los proyectos hijos se mueven dentro de la carpeta del proyecto padre en MinIO.',
+                    params: zod_1.default.object({
+                        id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
+                    }),
+                    body: zod_1.default.object({
+                        proyectos_hijos_ids: zod_1.default.array(zod_1.default.number()),
+                        usuario_operacion: zod_1.default.number()
+                    }),
+                    response: {
+                        200: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string(),
+                            data: zod_1.default.object({
+                                proyecto_padre: zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string()
+                                }),
+                                proyectos_asignados: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string()
+                                }))
+                            })
+                        }),
+                        400: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        }),
+                        404: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        })
+                    }
+                }
+            }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
+                var id, _a, proyectos_hijos_ids, usuario_operacion, proyectoPadre, proyectosHijos, proyectosPadre, proyectosConPadre, proyectosAsignados, _i, proyectosHijos_1, proyectoHijo, oldPath, newPath, moveError_2, error_8;
+                var _b;
+                return __generator(this, function (_c) {
+                    switch (_c.label) {
+                        case 0:
+                            id = request.params.id;
+                            _a = request.body, proyectos_hijos_ids = _a.proyectos_hijos_ids, usuario_operacion = _a.usuario_operacion;
+                            _c.label = 1;
+                        case 1:
+                            _c.trys.push([1, 17, , 18]);
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
+                                    where: {
+                                        id: id,
+                                        eliminado: false
+                                    },
+                                    include: {
+                                        carpeta_raiz: true
+                                    }
+                                })];
+                        case 2:
+                            proyectoPadre = _c.sent();
+                            if (!proyectoPadre) {
+                                return [2 /*return*/, reply.status(404).send({
+                                        success: false,
+                                        message: 'Proyecto padre no encontrado'
+                                    })];
+                            }
+                            if (!proyectoPadre.es_proyecto_padre) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: 'El proyecto especificado no es un proyecto padre'
+                                    })];
+                            }
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                    where: {
+                                        id: { in: proyectos_hijos_ids },
+                                        eliminado: false
+                                    },
+                                    include: {
+                                        carpeta_raiz: true
+                                    }
+                                })];
+                        case 3:
+                            proyectosHijos = _c.sent();
+                            if (proyectosHijos.length !== proyectos_hijos_ids.length) {
+                                return [2 /*return*/, reply.status(404).send({
+                                        success: false,
+                                        message: 'Uno o más proyectos hijos no encontrados'
+                                    })];
+                            }
+                            proyectosPadre = proyectosHijos.filter(function (p) { return p.es_proyecto_padre; });
+                            if (proyectosPadre.length > 0) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: "Los siguientes proyectos son proyectos padre y no pueden ser hijos: ".concat(proyectosPadre.map(function (p) { return p.nombre; }).join(', '))
+                                    })];
+                            }
+                            proyectosConPadre = proyectosHijos.filter(function (p) { return p.proyecto_padre_id !== null; });
+                            if (proyectosConPadre.length > 0) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: "Los siguientes proyectos ya tienen un proyecto padre: ".concat(proyectosConPadre.map(function (p) { return p.nombre; }).join(', '))
+                                    })];
+                            }
+                            // Asignar los proyectos hijos al proyecto padre
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.updateMany({
+                                    where: {
+                                        id: { in: proyectos_hijos_ids }
+                                    },
+                                    data: {
+                                        proyecto_padre_id: id
+                                    }
+                                })];
+                        case 4:
+                            // Asignar los proyectos hijos al proyecto padre
+                            _c.sent();
+                            proyectosAsignados = [];
+                            _i = 0, proyectosHijos_1 = proyectosHijos;
+                            _c.label = 5;
+                        case 5:
+                            if (!(_i < proyectosHijos_1.length)) return [3 /*break*/, 16];
+                            proyectoHijo = proyectosHijos_1[_i];
+                            _c.label = 6;
+                        case 6:
+                            _c.trys.push([6, 13, , 14]);
+                            if (!proyectoHijo.carpeta_raiz) return [3 /*break*/, 12];
+                            oldPath = proyectoHijo.carpeta_raiz.s3_path;
+                            newPath = "".concat(((_b = proyectoPadre.carpeta_raiz) === null || _b === void 0 ? void 0 : _b.s3_path) || "proyectos/".concat(proyectoPadre.nombre, "_").concat(proyectoPadre.id), "/").concat(proyectoHijo.nombre);
+                            // Mover la carpeta en MinIO
+                            return [4 /*yield*/, minio_utils_1.MinIOUtils.moveFolder(oldPath, newPath)];
+                        case 7:
+                            // Mover la carpeta en MinIO
+                            _c.sent();
+                            if (!proyectoPadre.carpeta_raiz) return [3 /*break*/, 9];
+                            return [4 /*yield*/, prisma_1.prisma.carpetas.update({
+                                    where: { id: proyectoHijo.carpeta_raiz.id },
+                                    data: {
+                                        s3_path: newPath,
+                                        carpeta_padre_id: proyectoPadre.carpeta_raiz.id
+                                    }
+                                })];
+                        case 8:
+                            _c.sent();
+                            return [3 /*break*/, 11];
+                        case 9: 
+                        // Si no hay carpeta raíz del proyecto padre, solo actualizar la ruta
+                        return [4 /*yield*/, prisma_1.prisma.carpetas.update({
+                                where: { id: proyectoHijo.carpeta_raiz.id },
+                                data: { s3_path: newPath }
+                            })];
+                        case 10:
+                            // Si no hay carpeta raíz del proyecto padre, solo actualizar la ruta
+                            _c.sent();
+                            _c.label = 11;
+                        case 11:
+                            console.log("Moved project ".concat(proyectoHijo.nombre, " from ").concat(oldPath, " to ").concat(newPath));
+                            _c.label = 12;
+                        case 12: return [3 /*break*/, 14];
+                        case 13:
+                            moveError_2 = _c.sent();
+                            console.error("Error moving project ".concat(proyectoHijo.id, ":"), moveError_2);
+                            return [3 /*break*/, 14];
+                        case 14:
+                            proyectosAsignados.push({
+                                id: proyectoHijo.id,
+                                nombre: proyectoHijo.nombre
+                            });
+                            _c.label = 15;
+                        case 15:
+                            _i++;
+                            return [3 /*break*/, 5];
+                        case 16: return [2 /*return*/, reply.status(200).send({
+                                success: true,
+                                message: 'Proyectos hijos asignados exitosamente',
+                                data: {
+                                    proyecto_padre: {
+                                        id: proyectoPadre.id,
+                                        nombre: proyectoPadre.nombre
+                                    },
+                                    proyectos_asignados: proyectosAsignados
+                                }
+                            })];
+                        case 17:
+                            error_8 = _c.sent();
+                            console.error('Error assigning child projects:', error_8);
+                            return [2 /*return*/, reply.status(500).send({
+                                    success: false,
+                                    message: 'Error al asignar proyectos hijos'
+                                })];
+                        case 18: return [2 /*return*/];
+                    }
+                });
+            }); })
+                .get('/proyectos/padres', {
+                schema: {
+                    tags: ['Proyectos'],
+                    summary: 'Obtener lista de proyectos padre',
+                    description: 'Retorna una lista de todos los proyectos padre con información de sus proyectos hijos.',
+                    response: {
+                        200: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string(),
+                            data: zod_1.default.array(zod_1.default.object({
+                                id: zod_1.default.number(),
+                                nombre: zod_1.default.string(),
+                                created_at: zod_1.default.date(),
+                                es_proyecto_padre: zod_1.default.boolean(),
+                                proyectos_hijos: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string(),
+                                    created_at: zod_1.default.date()
+                                })),
+                                creador: zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre_completo: zod_1.default.string().nullable()
+                                })
+                            }))
+                        })
+                    }
+                }
+            }, function () { return __awaiter(_this, void 0, void 0, function () {
+                var proyectosPadre;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0: return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                where: {
+                                    es_proyecto_padre: true,
+                                    eliminado: false
+                                },
+                                select: {
+                                    id: true,
+                                    nombre: true,
+                                    created_at: true,
+                                    es_proyecto_padre: true,
+                                    proyectos_hijos: {
+                                        where: {
+                                            eliminado: false
+                                        },
+                                        select: {
+                                            id: true,
+                                            nombre: true,
+                                            created_at: true
+                                        }
+                                    },
+                                    creador: {
+                                        select: {
+                                            id: true,
+                                            nombre_completo: true
+                                        }
+                                    }
+                                },
+                                orderBy: {
+                                    created_at: 'desc'
+                                }
+                            })];
+                        case 1:
+                            proyectosPadre = _a.sent();
+                            return [2 /*return*/, {
+                                    success: true,
+                                    message: 'Lista de proyectos padre obtenida exitosamente',
+                                    data: proyectosPadre
+                                }];
+                    }
+                });
+            }); })
+                .get('/proyectos/:id/hijos', {
+                schema: {
+                    tags: ['Proyectos'],
+                    summary: 'Obtener proyectos hijos de un proyecto padre',
+                    description: 'Retorna una lista de todos los proyectos hijos de un proyecto padre específico.',
+                    params: zod_1.default.object({
+                        id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
+                    }),
+                    response: {
+                        200: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string(),
+                            data: zod_1.default.object({
+                                proyecto_padre: zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string()
+                                }),
+                                proyectos_hijos: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string(),
+                                    created_at: zod_1.default.date(),
+                                    division: zod_1.default.object({
+                                        id: zod_1.default.number(),
+                                        nombre: zod_1.default.string()
+                                    }).nullable(),
+                                    departamento: zod_1.default.object({
+                                        id: zod_1.default.number(),
+                                        nombre: zod_1.default.string()
+                                    }).nullable(),
+                                    unidad: zod_1.default.object({
+                                        id: zod_1.default.number(),
+                                        nombre: zod_1.default.string()
+                                    }).nullable()
+                                }))
+                            })
+                        }),
+                        404: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        }),
+                        400: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        })
+                    }
+                }
+            }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
+                var id, proyectoPadre, proyectosHijos, error_9;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            id = request.params.id;
+                            _a.label = 1;
+                        case 1:
+                            _a.trys.push([1, 4, , 5]);
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
+                                    where: {
+                                        id: id,
+                                        eliminado: false
+                                    },
+                                    select: {
+                                        id: true,
+                                        nombre: true,
+                                        es_proyecto_padre: true
+                                    }
+                                })];
+                        case 2:
+                            proyectoPadre = _a.sent();
+                            if (!proyectoPadre) {
+                                return [2 /*return*/, reply.status(404).send({
+                                        success: false,
+                                        message: 'Proyecto no encontrado'
+                                    })];
+                            }
+                            if (!proyectoPadre.es_proyecto_padre) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: 'El proyecto especificado no es un proyecto padre'
+                                    })];
+                            }
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                    where: {
+                                        proyecto_padre_id: id,
+                                        eliminado: false
+                                    },
+                                    select: {
+                                        id: true,
+                                        nombre: true,
+                                        created_at: true,
+                                        division: {
+                                            select: {
+                                                id: true,
+                                                nombre: true
+                                            }
+                                        },
+                                        departamento: {
+                                            select: {
+                                                id: true,
+                                                nombre: true
+                                            }
+                                        },
+                                        unidad: {
+                                            select: {
+                                                id: true,
+                                                nombre: true
+                                            }
+                                        }
+                                    },
+                                    orderBy: {
+                                        created_at: 'desc'
+                                    }
+                                })];
+                        case 3:
+                            proyectosHijos = _a.sent();
+                            return [2 /*return*/, reply.status(200).send({
+                                    success: true,
+                                    message: 'Proyectos hijos obtenidos exitosamente',
+                                    data: {
+                                        proyecto_padre: {
+                                            id: proyectoPadre.id,
+                                            nombre: proyectoPadre.nombre
+                                        },
+                                        proyectos_hijos: proyectosHijos
+                                    }
+                                })];
+                        case 4:
+                            error_9 = _a.sent();
+                            console.error('Error getting child projects:', error_9);
+                            return [2 /*return*/, reply.status(500).send({
+                                    success: false,
+                                    message: 'Error al obtener los proyectos hijos'
+                                })];
+                        case 5: return [2 /*return*/];
+                    }
+                });
+            }); })
+                .patch('/proyectos/:id/remover-hijos', {
+                schema: {
+                    tags: ['Proyectos'],
+                    summary: 'Remover proyectos hijos de un proyecto padre',
+                    description: 'Remueve proyectos hijos de un proyecto padre. Los proyectos hijos se mueven de vuelta a la raíz y se actualizan sus rutas en MinIO.',
+                    params: zod_1.default.object({
+                        id: zod_1.default.string().transform(function (val) { return parseInt(val, 10); })
+                    }),
+                    body: zod_1.default.object({
+                        proyectos_hijos_ids: zod_1.default.array(zod_1.default.number()),
+                        usuario_operacion: zod_1.default.number()
+                    }),
+                    response: {
+                        200: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string(),
+                            data: zod_1.default.object({
+                                proyecto_padre: zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string()
+                                }),
+                                proyectos_removidos: zod_1.default.array(zod_1.default.object({
+                                    id: zod_1.default.number(),
+                                    nombre: zod_1.default.string()
+                                }))
+                            })
+                        }),
+                        400: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        }),
+                        404: zod_1.default.object({
+                            success: zod_1.default.boolean(),
+                            message: zod_1.default.string()
+                        })
+                    }
+                }
+            }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
+                var id, _a, proyectos_hijos_ids, usuario_operacion, proyectoPadre, proyectosHijos, proyectosRemovidos, _i, proyectosHijos_2, proyectoHijo, oldPath, newPath, moveError_3, error_10;
+                return __generator(this, function (_b) {
+                    switch (_b.label) {
+                        case 0:
+                            id = request.params.id;
+                            _a = request.body, proyectos_hijos_ids = _a.proyectos_hijos_ids, usuario_operacion = _a.usuario_operacion;
+                            _b.label = 1;
+                        case 1:
+                            _b.trys.push([1, 14, , 15]);
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
+                                    where: {
+                                        id: id,
+                                        eliminado: false
+                                    },
+                                    include: {
+                                        carpeta_raiz: true
+                                    }
+                                })];
+                        case 2:
+                            proyectoPadre = _b.sent();
+                            if (!proyectoPadre) {
+                                return [2 /*return*/, reply.status(404).send({
+                                        success: false,
+                                        message: 'Proyecto padre no encontrado'
+                                    })];
+                            }
+                            if (!proyectoPadre.es_proyecto_padre) {
+                                return [2 /*return*/, reply.status(400).send({
+                                        success: false,
+                                        message: 'El proyecto especificado no es un proyecto padre'
+                                    })];
+                            }
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
+                                    where: {
+                                        id: { in: proyectos_hijos_ids },
+                                        proyecto_padre_id: id,
+                                        eliminado: false
+                                    },
+                                    include: {
+                                        carpeta_raiz: true
+                                    }
+                                })];
+                        case 3:
+                            proyectosHijos = _b.sent();
+                            if (proyectosHijos.length !== proyectos_hijos_ids.length) {
+                                return [2 /*return*/, reply.status(404).send({
+                                        success: false,
+                                        message: 'Uno o más proyectos hijos no encontrados o no pertenecen a este proyecto padre'
+                                    })];
+                            }
+                            // Remover los proyectos hijos del proyecto padre
+                            return [4 /*yield*/, prisma_1.prisma.proyectos.updateMany({
+                                    where: {
+                                        id: { in: proyectos_hijos_ids }
+                                    },
+                                    data: {
+                                        proyecto_padre_id: null
+                                    }
+                                })];
+                        case 4:
+                            // Remover los proyectos hijos del proyecto padre
+                            _b.sent();
+                            proyectosRemovidos = [];
+                            _i = 0, proyectosHijos_2 = proyectosHijos;
+                            _b.label = 5;
+                        case 5:
+                            if (!(_i < proyectosHijos_2.length)) return [3 /*break*/, 13];
+                            proyectoHijo = proyectosHijos_2[_i];
+                            _b.label = 6;
+                        case 6:
+                            _b.trys.push([6, 10, , 11]);
+                            if (!proyectoHijo.carpeta_raiz) return [3 /*break*/, 9];
+                            oldPath = proyectoHijo.carpeta_raiz.s3_path;
+                            newPath = "proyectos/".concat(proyectoHijo.nombre, "_").concat(proyectoHijo.id);
+                            // Mover la carpeta en MinIO
+                            return [4 /*yield*/, minio_utils_1.MinIOUtils.moveFolder(oldPath, newPath)];
+                        case 7:
+                            // Mover la carpeta en MinIO
+                            _b.sent();
+                            // Actualizar la ruta y remover la carpeta padre en la base de datos
+                            return [4 /*yield*/, prisma_1.prisma.carpetas.update({
+                                    where: { id: proyectoHijo.carpeta_raiz.id },
+                                    data: {
+                                        s3_path: newPath,
+                                        carpeta_padre_id: null
+                                    }
+                                })];
+                        case 8:
+                            // Actualizar la ruta y remover la carpeta padre en la base de datos
+                            _b.sent();
+                            console.log("Moved project ".concat(proyectoHijo.nombre, " from ").concat(oldPath, " to ").concat(newPath));
+                            _b.label = 9;
+                        case 9: return [3 /*break*/, 11];
+                        case 10:
+                            moveError_3 = _b.sent();
+                            console.error("Error moving project ".concat(proyectoHijo.id, ":"), moveError_3);
+                            return [3 /*break*/, 11];
+                        case 11:
+                            proyectosRemovidos.push({
+                                id: proyectoHijo.id,
+                                nombre: proyectoHijo.nombre
+                            });
+                            _b.label = 12;
+                        case 12:
+                            _i++;
+                            return [3 /*break*/, 5];
+                        case 13: return [2 /*return*/, reply.status(200).send({
+                                success: true,
+                                message: 'Proyectos hijos removidos exitosamente',
+                                data: {
+                                    proyecto_padre: {
+                                        id: proyectoPadre.id,
+                                        nombre: proyectoPadre.nombre
+                                    },
+                                    proyectos_removidos: proyectosRemovidos
+                                }
+                            })];
+                        case 14:
+                            error_10 = _b.sent();
+                            console.error('Error removing child projects:', error_10);
+                            return [2 /*return*/, reply.status(500).send({
+                                    success: false,
+                                    message: 'Error al remover proyectos hijos'
+                                })];
+                        case 15: return [2 /*return*/];
                     }
                 });
             }); });
