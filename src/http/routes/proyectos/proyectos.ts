@@ -412,8 +412,9 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
     }, async () => {
       const proyectos = await prisma.proyectos.findMany({
         where: {
-          eliminado: false
+          eliminado: false,
           // Removido el filtro proyecto_padre_id: null para mostrar todos los proyectos
+          proyecto_padre_id: null
         },
         select: {
           id: true,
