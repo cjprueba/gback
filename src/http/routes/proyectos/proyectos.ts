@@ -2270,18 +2270,24 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
                 id: z.number(),
                 nombre: z.string(),
                 created_at: z.date(),
-                division: z.object({
+                carpeta_raiz_id: z.number().nullable(),
+                es_proyecto_padre: z.boolean(),
+                proyecto_padre_id: z.number().nullable(),
+                
+                // Solo etapa_tipo
+                etapas_registro: z.array(z.object({
+                  etapa_tipo: z.object({
+                    id: z.number(),
+                    nombre: z.string(),
+                    color: z.string()
+                  })
+                })),
+                
+                // Solo creador
+                creador: z.object({
                   id: z.number(),
-                  nombre: z.string()
-                }).nullable(),
-                departamento: z.object({
-                  id: z.number(),
-                  nombre: z.string()
-                }).nullable(),
-                unidad: z.object({
-                  id: z.number(),
-                  nombre: z.string()
-                }).nullable()
+                  nombre_completo: z.string().nullable()
+                })
               }))
             })
           }),
@@ -2336,22 +2342,28 @@ export async function proyectosRoutes(fastify: FastifyInstance) {
             id: true,
             nombre: true,
             created_at: true,
-            division: {
+            carpeta_raiz_id: true,
+            es_proyecto_padre: true,
+            proyecto_padre_id: true,
+            etapas_registro: {
+              take: 1,
+              orderBy: {
+                fecha_creacion: 'desc'
+              },
               select: {
-                id: true,
-                nombre: true
+                etapa_tipo: {
+                  select: {
+                    id: true,
+                    nombre: true,
+                    color: true
+                  }
+                }
               }
             },
-            departamento: {
+            creador: {
               select: {
                 id: true,
-                nombre: true
-              }
-            },
-            unidad: {
-              select: {
-                id: true,
-                nombre: true
+                nombre_completo: true
               }
             }
           },

@@ -337,6 +337,7 @@ async function main() {
         descripcion: '-',
         color: '#9B59B6',
         carpetas_iniciales: {
+          "Gestión Contractual": {},
           "Modificaciones de Contrato": {}
         },
         // Solo habilitar los campos específicos para Concesiones en Operación y Construcción

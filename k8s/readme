@@ -1,3 +1,4 @@
 Para desplegar
+oc apply -f .\deployment-openshift.yaml
 oc start-build gestor-backend --from-dir=.. --follow
 oc rollout restart deployment/gestor-backend
