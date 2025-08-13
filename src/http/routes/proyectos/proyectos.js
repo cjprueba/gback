@@ -459,8 +459,9 @@ function proyectosRoutes(fastify) {
                     switch (_a.label) {
                         case 0: return [4 /*yield*/, prisma_1.prisma.proyectos.findMany({
                                 where: {
-                                    eliminado: false
+                                    eliminado: false,
                                     // Removido el filtro proyecto_padre_id: null para mostrar todos los proyectos
+                                    proyecto_padre_id: null
                                 },
                                 select: {
                                     id: true,
@@ -1130,9 +1131,7 @@ function proyectosRoutes(fastify) {
                             _b.trys.push([1, 35, , 36]);
                             return [4 /*yield*/, prisma_1.prisma.proyectos.findUnique({
                                     where: {
-                                        id: id,
-                                        // Solo permitir cambiar etapa en proyectos que NO son hijos
-                                        proyecto_padre_id: null
+                                        id: id
                                     },
                                     include: {
                                         etapas_registro: {
@@ -1145,12 +1144,7 @@ function proyectosRoutes(fastify) {
                                 })];
                         case 2:
                             proyecto = _b.sent();
-                            if (!proyecto) {
-                                return [2 /*return*/, reply.status(404).send({
-                                        success: false,
-                                        message: 'Proyecto padre no encontrado o es un proyecto hijo'
-                                    })];
-                            }
+                            console.log('proyecto', proyecto);
                             return [4 /*yield*/, prisma_1.prisma.etapas_tipo.findUnique({
                                     where: { id: body.etapa_tipo_id },
                                     select: {
@@ -2361,18 +2355,22 @@ function proyectosRoutes(fastify) {
                                     id: zod_1.default.number(),
                                     nombre: zod_1.default.string(),
                                     created_at: zod_1.default.date(),
-                                    division: zod_1.default.object({
+                                    carpeta_raiz_id: zod_1.default.number().nullable(),
+                                    es_proyecto_padre: zod_1.default.boolean(),
+                                    proyecto_padre_id: zod_1.default.number().nullable(),
+                                    // Solo etapa_tipo
+                                    etapas_registro: zod_1.default.array(zod_1.default.object({
+                                        etapa_tipo: zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            nombre: zod_1.default.string(),
+                                            color: zod_1.default.string()
+                                        })
+                                    })),
+                                    // Solo creador
+                                    creador: zod_1.default.object({
                                         id: zod_1.default.number(),
-                                        nombre: zod_1.default.string()
-                                    }).nullable(),
-                                    departamento: zod_1.default.object({
-                                        id: zod_1.default.number(),
-                                        nombre: zod_1.default.string()
-                                    }).nullable(),
-                                    unidad: zod_1.default.object({
-                                        id: zod_1.default.number(),
-                                        nombre: zod_1.default.string()
-                                    }).nullable()
+                                        nombre_completo: zod_1.default.string().nullable()
+                                    })
                                 }))
                             })
                         }),
@@ -2429,22 +2427,28 @@ function proyectosRoutes(fastify) {
                                         id: true,
                                         nombre: true,
                                         created_at: true,
-                                        division: {
+                                        carpeta_raiz_id: true,
+                                        es_proyecto_padre: true,
+                                        proyecto_padre_id: true,
+                                        etapas_registro: {
+                                            take: 1,
+                                            orderBy: {
+                                                fecha_creacion: 'desc'
+                                            },
                                             select: {
-                                                id: true,
-                                                nombre: true
+                                                etapa_tipo: {
+                                                    select: {
+                                                        id: true,
+                                                        nombre: true,
+                                                        color: true
+                                                    }
+                                                }
                                             }
                                         },
-                                        departamento: {
+                                        creador: {
                                             select: {
                                                 id: true,
-                                                nombre: true
-                                            }
-                                        },
-                                        unidad: {
-                                            select: {
-                                                id: true,
-                                                nombre: true
+                                                nombre_completo: true
                                             }
                                         }
                                     },

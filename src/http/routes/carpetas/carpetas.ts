@@ -725,7 +725,21 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                   id: z.number(),
                   nombre: z.string(),
                   descripcion: z.string().nullable()
-                }).nullable().optional()
+                }).nullable().optional(),
+                // Lista de todas las versiones del documento
+                versiones: z.array(z.object({
+                  id: z.number(),
+                  numero_version: z.number(),
+                  s3_path: z.string(),
+                  s3_bucket_name: z.string().nullable(),
+                  tamano: z.number().nullable(),
+                  hash_integridad: z.string().nullable(),
+                  comentario: z.string().nullable(),
+                  fecha_creacion: z.date(),
+                  usuario_creador: z.number(),
+                  activa: z.boolean(),
+                  metadata: z.any().nullable()
+                }))
               }))
             }),
             estadisticas: z.object({
@@ -947,6 +961,25 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
                   id: true,
                   nombre_completo: true
                 }
+              },
+              // Incluir todas las versiones del documento
+              versiones: {
+                select: {
+                  id: true,
+                  numero_version: true,
+                  tamano: true,
+                  s3_path: true,
+                  s3_bucket_name: true,
+                  hash_integridad: true,
+                  comentario: true,
+                  fecha_creacion: true,
+                  usuario_creador: true,
+                  activa: true,
+                  metadata: true
+                },
+                orderBy: {
+                  numero_version: 'desc'
+                }
               }
             }
           });
@@ -975,11 +1008,51 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
             })
           );
 
-          // Convertir BigInt a number para la respuesta
-          const documentosFormateados = documentos.map(doc => ({
-            ...doc,
-            tamano: doc.tamano ? Number(doc.tamano) : null
-          }));
+          // Formatear documentos para la respuesta, usando datos de la versión activa
+          const documentosFormateados = documentosConTipo.map(doc => {
+            const versionActiva = doc.versiones.find(v => v.activa); // Buscar la versión activa
+            
+            return {
+              id: doc.id,
+              nombre_archivo: doc.nombre_archivo,
+              extension: doc.extension,
+              tamano: versionActiva?.tamano ? Number(versionActiva.tamano) : null,
+              tipo_mime: doc.tipo_mime,
+              fecha_creacion: doc.fecha_creacion,
+              descripcion: doc.descripcion,
+              categoria: doc.categoria,
+              estado: doc.estado,
+              version: versionActiva?.numero_version ? String(versionActiva.numero_version) : null,
+              etiquetas: doc.etiquetas,
+              usuario_creador: doc.usuario_creador,
+              subido_por: doc.subido_por,
+              tipo_documento_id: doc.tipo_documento_id,
+              tipo_documento: (doc as any).tipo_documento,
+              // Incluir todas las versiones formateadas
+              versiones: (doc as any).versiones.map((v: any) => ({
+                id: v.id,
+                numero_version: v.numero_version,
+                s3_path: v.s3_path,
+                s3_bucket_name: v.s3_bucket_name,
+                tamano: v.tamano ? Number(v.tamano) : null,
+                hash_integridad: v.hash_integridad,
+                comentario: v.comentario,
+                fecha_creacion: v.fecha_creacion,
+                usuario_creador: v.usuario_creador,
+                activa: v.activa,
+                metadata: v.metadata
+              }))
+            };
+          });
+
+          // Aplicar ordenamiento client-side si es necesario (para campos que no están en la consulta principal)
+          if (sort_documentos === 'tamano') {
+            documentosFormateados.sort((a, b) => {
+              const tamanoA = a.tamano || 0;
+              const tamanoB = b.tamano || 0;
+              return sort_order === 'asc' ? tamanoA - tamanoB : tamanoB - tamanoA;
+            });
+          }
 
           response.contenido.documentos = documentosFormateados;
           
@@ -987,21 +1060,21 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
           const totalDocumentos = await calcularTotalDocumentosRecursivo(parseInt(id));
           response.estadisticas.total_documentos = totalDocumentos;
 
-          // Calcular estadísticas de documentos
-          if (documentos.length > 0) {
-            const tamanoTotal = documentos.reduce((sum, doc) => {
-              return sum + (doc.tamano ? Number(doc.tamano) : 0);
+          // Calcular estadísticas de documentos usando datos de las versiones activas
+          if (documentosFormateados.length > 0) {
+            const tamanoTotal = documentosFormateados.reduce((sum, doc) => {
+              return sum + (doc.tamano || 0);
             }, 0);
 
             const tiposUnicos = Array.from(new Set(
-              documentos
+              documentosFormateados
                 .map(doc => doc.extension)
                 .filter(ext => ext)
             ));
 
-            const fechaUltima = documentos.reduce((latest, doc) => {
-              return doc.fecha_ultima_actualizacion > latest ? doc.fecha_ultima_actualizacion : latest;
-            }, documentos[0].fecha_ultima_actualizacion);
+            const fechaUltima = documentosFormateados.reduce((latest, doc) => {
+              return doc.fecha_creacion > latest ? doc.fecha_creacion : latest;
+            }, documentosFormateados[0].fecha_creacion);
 
             response.estadisticas.tamano_total_mb = Math.round(tamanoTotal / (1024 * 1024) * 100) / 100; // Convertir a MB
             response.estadisticas.tipos_archivo_unicos = tiposUnicos;
@@ -1169,9 +1242,11 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
 
         // Actualizar las rutas S3 de todos los documentos en esta carpeta
         await prisma.$executeRaw`
-          UPDATE documentos 
+          UPDATE documento_versiones 
           SET s3_path = REPLACE(s3_path, ${carpeta.s3_path}, ${nuevaRutaS3})
-          WHERE carpeta_id = ${parseInt(id)}
+          WHERE documento_id IN (
+            SELECT id FROM documentos WHERE carpeta_id = ${parseInt(id)}
+          )
         `;
 
         console.log(`Carpeta renombrada exitosamente: ${carpeta.nombre} -> ${nuevo_nombre} (ID: ${carpeta.id})`);
@@ -1359,9 +1434,11 @@ export async function carpetasRoutes(fastify: FastifyInstance) {
 
         // Actualizar las rutas S3 de todos los documentos en esta carpeta
         await prisma.$executeRaw`
-          UPDATE documentos 
+          UPDATE documento_versiones 
           SET s3_path = REPLACE(s3_path, ${carpeta.s3_path}, ${nuevaRutaS3})
-          WHERE carpeta_id = ${parseInt(id)}
+          WHERE documento_id IN (
+            SELECT id FROM documentos WHERE carpeta_id = ${parseInt(id)}
+          )
         `;
 
         console.log(`Carpeta movida exitosamente: ${carpeta.nombre} (ID: ${carpeta.id})`);
@@ -1405,11 +1482,13 @@ async function actualizarRutasSubcarpetas(
         }
       });
 
-      // Actualizar documentos en esta subcarpeta
+      // Actualizar documentos en esta subcarpeta - ahora usando documento_versiones
       await prisma.$executeRaw`
-        UPDATE documentos 
+        UPDATE documento_versiones 
         SET s3_path = REPLACE(s3_path, ${subcarpeta.s3_path}, ${nuevaRutaSubcarpeta})
-        WHERE carpeta_id = ${subcarpeta.id}
+        WHERE documento_id IN (
+          SELECT id FROM documentos WHERE carpeta_id = ${subcarpeta.id}
+        )
       `;
 
       // Recursivamente actualizar subcarpetas de esta subcarpeta

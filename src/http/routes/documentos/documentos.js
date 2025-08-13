@@ -83,7 +83,7 @@ function documentosRoutes(app) {
                         schema: {
                             tags: ['Documentos'],
                             summary: 'Subir un documento a una carpeta',
-                            description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos. El proyecto_id se obtiene automáticamente de la carpeta especificada. El tipo_documento_id es obligatorio.',
+                            description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos con su primera versión. El proyecto_id se obtiene automáticamente de la carpeta especificada. El tipo_documento_id es obligatorio. Si se envía el parámetro reemplazar=true, se omite la validación de documento duplicado.',
                             consumes: ['multipart/form-data'],
                             response: {
                                 200: zod_1.default.object({
@@ -93,26 +93,36 @@ function documentosRoutes(app) {
                                         id: zod_1.default.string(),
                                         nombre_archivo: zod_1.default.string(),
                                         extension: zod_1.default.string().nullable().optional(),
-                                        tamano: zod_1.default.number().optional(),
                                         tipo_mime: zod_1.default.string().nullable().optional(),
                                         descripcion: zod_1.default.string().nullable().optional(),
                                         categoria: zod_1.default.string().nullable().optional(),
                                         estado: zod_1.default.string().nullable().optional(),
-                                        version: zod_1.default.string().nullable().optional(),
                                         carpeta_id: zod_1.default.number(),
-                                        s3_path: zod_1.default.string().nullable().optional(),
-                                        s3_bucket_name: zod_1.default.string().nullable().optional(),
-                                        s3_created: zod_1.default.boolean().optional(),
-                                        hash_integridad: zod_1.default.string().nullable().optional(),
                                         etiquetas: zod_1.default.array(zod_1.default.string()),
                                         proyecto_id: zod_1.default.number().nullable().optional(),
                                         subido_por: zod_1.default.number(),
+                                        usuario_creador: zod_1.default.number(),
                                         fecha_creacion: zod_1.default.date(),
                                         fecha_ultima_actualizacion: zod_1.default.date(),
+                                        version_actual: zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            numero_version: zod_1.default.number(),
+                                            s3_path: zod_1.default.string(),
+                                            s3_bucket_name: zod_1.default.string().nullable().optional(),
+                                            tamano: zod_1.default.number().nullable().optional(),
+                                            hash_integridad: zod_1.default.string().nullable().optional(),
+                                            comentario: zod_1.default.string().nullable().optional(),
+                                            fecha_creacion: zod_1.default.date(),
+                                            activa: zod_1.default.boolean(),
+                                        }),
                                     }),
                                 }),
                                 400: zod_1.default.object({
-                                    error: zod_1.default.string(),
+                                    success: zod_1.default.boolean(),
+                                    error: zod_1.default.object({
+                                        code: zod_1.default.string(),
+                                        message: zod_1.default.string(),
+                                    }),
                                 }),
                                 401: zod_1.default.object({
                                     error: zod_1.default.string(),
@@ -123,15 +133,15 @@ function documentosRoutes(app) {
                             },
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var data, carpetaId, userId, tipoDocumentoId, descripcion, categoria, etiquetas, archivoRelacionado, carpeta, tipoDocumento, fileBuffer, hashIntegridad, s3Path, documento, error_1;
-                        var _a, _b, _c, _d, _e, _f, _g, _h;
-                        return __generator(this, function (_j) {
-                            switch (_j.label) {
+                        var data, carpetaId, userId, tipoDocumentoId, descripcion, categoria, etiquetas, comentario, reemplazar, existingDocument, nextVersionNumber, highestVersion, carpeta, tipoDocumento, fileBuffer, hashIntegridad, s3Path, documento, version, error_1;
+                        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+                        return __generator(this, function (_k) {
+                            switch (_k.label) {
                                 case 0:
-                                    _j.trys.push([0, 8, , 9]);
+                                    _k.trys.push([0, 17, , 18]);
                                     return [4 /*yield*/, request.file()];
                                 case 1:
-                                    data = _j.sent();
+                                    data = _k.sent();
                                     if (!data) {
                                         throw new bad_request_error_1.BadRequestError('No file provided');
                                     }
@@ -141,26 +151,61 @@ function documentosRoutes(app) {
                                     descripcion = (_d = data.fields['descripcion']) === null || _d === void 0 ? void 0 : _d.value;
                                     categoria = (_e = data.fields['categoria']) === null || _e === void 0 ? void 0 : _e.value;
                                     etiquetas = ((_f = data.fields['etiquetas']) === null || _f === void 0 ? void 0 : _f.value) ? JSON.parse(data.fields['etiquetas'].value) : [];
-                                    archivoRelacionado = (_g = data.fields['archivo_relacionado']) === null || _g === void 0 ? void 0 : _g.value;
+                                    comentario = (_g = data.fields['comentario']) === null || _g === void 0 ? void 0 : _g.value;
+                                    reemplazar = ((_h = data.fields['reemplazar']) === null || _h === void 0 ? void 0 : _h.value) === '1';
                                     // Validate required fields
                                     if (!tipoDocumentoId || isNaN(tipoDocumentoId)) {
                                         throw new bad_request_error_1.BadRequestError('tipo_documento_id is required and must be a valid number');
                                     }
                                     console.log('carpetaId', data.fields['carpeta_id']['value']);
-                                    return [4 /*yield*/, prisma_1.prisma.carpetas.findFirst({
+                                    return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
                                             where: {
-                                                id: carpetaId,
-                                            },
-                                            include: {
-                                                proyecto: {
-                                                    select: {
-                                                        id: true,
-                                                    },
-                                                },
+                                                nombre_archivo: data.filename,
+                                                carpeta_id: carpetaId,
+                                                eliminado: false,
                                             },
                                         })];
                                 case 2:
-                                    carpeta = _j.sent();
+                                    existingDocument = _k.sent();
+                                    if (existingDocument && !reemplazar) {
+                                        return [2 /*return*/, reply.status(400).send({
+                                                success: false,
+                                                error: {
+                                                    code: 'DOCUMENT_ALREADY_EXISTS',
+                                                    message: 'El documento ya existe en esta carpeta'
+                                                }
+                                            })];
+                                    }
+                                    nextVersionNumber = 1;
+                                    if (!(existingDocument && reemplazar)) return [3 /*break*/, 4];
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                            where: {
+                                                documento_id: existingDocument.id,
+                                            },
+                                            orderBy: {
+                                                numero_version: 'desc',
+                                            },
+                                        })];
+                                case 3:
+                                    highestVersion = _k.sent();
+                                    if (highestVersion) {
+                                        nextVersionNumber = highestVersion.numero_version + 1;
+                                    }
+                                    _k.label = 4;
+                                case 4: return [4 /*yield*/, prisma_1.prisma.carpetas.findFirst({
+                                        where: {
+                                            id: carpetaId,
+                                        },
+                                        include: {
+                                            proyecto: {
+                                                select: {
+                                                    id: true,
+                                                },
+                                            },
+                                        },
+                                    })];
+                                case 5:
+                                    carpeta = _k.sent();
                                     if (!carpeta) {
                                         throw new bad_request_error_1.BadRequestError('Folder not found');
                                     }
@@ -170,92 +215,172 @@ function documentosRoutes(app) {
                                                 activo: true,
                                             },
                                         })];
-                                case 3:
-                                    tipoDocumento = _j.sent();
+                                case 6:
+                                    tipoDocumento = _k.sent();
                                     if (!tipoDocumento) {
                                         throw new bad_request_error_1.BadRequestError('Document type not found or is not active');
                                     }
                                     return [4 /*yield*/, data.toBuffer()];
-                                case 4:
-                                    fileBuffer = _j.sent();
+                                case 7:
+                                    fileBuffer = _k.sent();
                                     hashIntegridad = (0, crypto_1.createHash)('sha256').update(fileBuffer).digest('hex');
-                                    s3Path = "".concat(carpeta.s3_path, "/").concat(data.filename);
+                                    s3Path = "".concat(carpeta.s3_path, "/version_").concat(nextVersionNumber, "_").concat(data.filename);
                                     // Upload file to MinIO
                                     return [4 /*yield*/, minio_utils_1.minioClient.putObject(minio_utils_1.BUCKET_NAME, s3Path, fileBuffer)];
-                                case 5:
+                                case 8:
                                     // Upload file to MinIO
-                                    _j.sent();
-                                    return [4 /*yield*/, prisma_1.prisma.documentos.create({
+                                    _k.sent();
+                                    documento = void 0;
+                                    version = void 0;
+                                    if (!(existingDocument && reemplazar)) return [3 /*break*/, 12];
+                                    return [4 /*yield*/, prisma_1.prisma.documentos.update({
+                                            where: { id: existingDocument.id },
                                             data: {
-                                                nombre_archivo: data.filename,
                                                 extension: data.filename.split('.').pop() || null,
-                                                tamano: BigInt(fileBuffer.length),
                                                 tipo_mime: data.mimetype,
                                                 descripcion: descripcion || null,
                                                 categoria: categoria || null,
-                                                estado: 'activo',
-                                                version: '1.0',
-                                                archivo_relacionado: archivoRelacionado || null,
-                                                carpeta_id: carpetaId,
-                                                tipo_documento_id: tipoDocumentoId,
+                                                fecha_ultima_actualizacion: new Date(),
+                                            },
+                                        })];
+                                case 9:
+                                    // Update existing document
+                                    documento = _k.sent();
+                                    // Deactivate all previous versions
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.updateMany({
+                                            where: {
+                                                documento_id: existingDocument.id,
+                                                activa: true,
+                                            },
+                                            data: {
+                                                activa: false,
+                                            },
+                                        })];
+                                case 10:
+                                    // Deactivate all previous versions
+                                    _k.sent();
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.create({
+                                            data: {
+                                                documento_id: existingDocument.id,
+                                                numero_version: nextVersionNumber,
                                                 s3_path: s3Path,
                                                 s3_bucket_name: minio_utils_1.BUCKET_NAME,
-                                                s3_created: true,
+                                                tamano: BigInt(fileBuffer.length),
                                                 hash_integridad: hashIntegridad,
-                                                etiquetas: etiquetas,
-                                                proyecto_id: ((_h = carpeta.proyecto) === null || _h === void 0 ? void 0 : _h.id) || null,
-                                                subido_por: userId,
+                                                comentario: comentario || null,
                                                 usuario_creador: userId,
+                                                metadata: {
+                                                    original_filename: data.filename,
+                                                    mime_type: data.mimetype,
+                                                    upload_timestamp: new Date().toISOString(),
+                                                    replaced_previous_version: true,
+                                                },
+                                                activa: true,
                                             },
                                         })];
-                                case 6:
-                                    documento = _j.sent();
-                                    // Create audit record
-                                    return [4 /*yield*/, prisma_1.prisma.archivo_historial.create({
+                                case 11:
+                                    // Create new version record
+                                    version = _k.sent();
+                                    return [3 /*break*/, 15];
+                                case 12: return [4 /*yield*/, prisma_1.prisma.documentos.create({
+                                        data: {
+                                            nombre_archivo: data.filename,
+                                            extension: data.filename.split('.').pop() || null,
+                                            tipo_mime: data.mimetype,
+                                            descripcion: descripcion || null,
+                                            categoria: categoria || null,
+                                            estado: 'activo',
+                                            carpeta_id: carpetaId,
+                                            tipo_documento_id: tipoDocumentoId,
+                                            etiquetas: etiquetas,
+                                            proyecto_id: ((_j = carpeta.proyecto) === null || _j === void 0 ? void 0 : _j.id) || null,
+                                            subido_por: userId,
+                                            usuario_creador: userId,
+                                        },
+                                    })];
+                                case 13:
+                                    // Create new document record
+                                    documento = _k.sent();
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.create({
                                             data: {
-                                                archivo_id: documento.id,
-                                                usuario_id: userId,
-                                                accion: 'upload',
-                                                descripcion: 'File uploaded',
-                                                version_nueva: '1.0',
+                                                documento_id: documento.id,
+                                                numero_version: 1,
+                                                s3_path: s3Path,
+                                                s3_bucket_name: minio_utils_1.BUCKET_NAME,
+                                                tamano: BigInt(fileBuffer.length),
+                                                hash_integridad: hashIntegridad,
+                                                comentario: comentario || null,
+                                                usuario_creador: userId,
+                                                metadata: {
+                                                    original_filename: data.filename,
+                                                    mime_type: data.mimetype,
+                                                    upload_timestamp: new Date().toISOString(),
+                                                },
+                                                activa: true,
                                             },
                                         })];
-                                case 7:
+                                case 14:
+                                    // Create first version record
+                                    version = _k.sent();
+                                    _k.label = 15;
+                                case 15: 
+                                // Create audit record
+                                return [4 /*yield*/, prisma_1.prisma.archivo_historial.create({
+                                        data: {
+                                            archivo_id: documento.id,
+                                            usuario_id: userId,
+                                            accion: existingDocument && reemplazar ? 'replace' : 'upload',
+                                            descripcion: existingDocument && reemplazar
+                                                ? "File replaced - new version ".concat(nextVersionNumber, " created")
+                                                : 'File uploaded - first version created',
+                                            version_anterior: existingDocument && reemplazar ? String(nextVersionNumber - 1) : null,
+                                            version_nueva: String(version.numero_version),
+                                        },
+                                    })];
+                                case 16:
                                     // Create audit record
-                                    _j.sent();
+                                    _k.sent();
                                     return [2 /*return*/, reply.send({
                                             success: true,
-                                            message: 'Document uploaded successfully',
+                                            message: existingDocument && reemplazar
+                                                ? "Document replaced successfully with version ".concat(nextVersionNumber)
+                                                : 'Document uploaded successfully',
                                             documento: {
                                                 id: documento.id,
                                                 nombre_archivo: documento.nombre_archivo,
                                                 extension: documento.extension,
-                                                tamano: Number(documento.tamano),
                                                 tipo_mime: documento.tipo_mime,
                                                 descripcion: documento.descripcion,
                                                 categoria: documento.categoria,
                                                 estado: documento.estado,
-                                                version: documento.version,
                                                 carpeta_id: documento.carpeta_id,
-                                                s3_path: documento.s3_path,
-                                                s3_bucket_name: documento.s3_bucket_name,
-                                                s3_created: documento.s3_created,
-                                                hash_integridad: documento.hash_integridad,
                                                 etiquetas: documento.etiquetas,
                                                 proyecto_id: documento.proyecto_id,
                                                 subido_por: documento.subido_por,
+                                                usuario_creador: documento.usuario_creador,
                                                 fecha_creacion: documento.fecha_creacion,
                                                 fecha_ultima_actualizacion: documento.fecha_ultima_actualizacion,
+                                                version_actual: {
+                                                    id: version.id,
+                                                    numero_version: version.numero_version,
+                                                    s3_path: version.s3_path,
+                                                    s3_bucket_name: version.s3_bucket_name,
+                                                    tamano: Number(version.tamano),
+                                                    hash_integridad: version.hash_integridad,
+                                                    comentario: version.comentario,
+                                                    fecha_creacion: version.fecha_creacion,
+                                                    activa: version.activa,
+                                                },
                                             },
                                         })];
-                                case 8:
-                                    error_1 = _j.sent();
+                                case 17:
+                                    error_1 = _k.sent();
                                     console.error('Error uploading document:', error_1);
                                     if (error_1 instanceof bad_request_error_1.BadRequestError || error_1 instanceof unauthorized_error_1.UnauthorizedError) {
                                         throw error_1;
                                     }
                                     throw new bad_request_error_1.BadRequestError('Failed to upload document');
-                                case 9: return [2 /*return*/];
+                                case 18: return [2 /*return*/];
                             }
                         });
                     }); });
@@ -277,20 +402,15 @@ function documentosRoutes(app) {
                                         id: zod_1.default.string(),
                                         nombre_archivo: zod_1.default.string(),
                                         extension: zod_1.default.string().nullable().optional(),
-                                        tamano: zod_1.default.number().optional(),
                                         tipo_mime: zod_1.default.string().nullable().optional(),
                                         descripcion: zod_1.default.string().nullable().optional(),
                                         categoria: zod_1.default.string().nullable().optional(),
                                         estado: zod_1.default.string().nullable().optional(),
-                                        version: zod_1.default.string().nullable().optional(),
                                         carpeta_id: zod_1.default.number(),
-                                        s3_path: zod_1.default.string().nullable().optional(),
-                                        s3_bucket_name: zod_1.default.string().nullable().optional(),
-                                        s3_created: zod_1.default.boolean().optional(),
-                                        hash_integridad: zod_1.default.string().nullable().optional(),
                                         etiquetas: zod_1.default.array(zod_1.default.string()),
                                         proyecto_id: zod_1.default.number().nullable().optional(),
                                         subido_por: zod_1.default.number(),
+                                        usuario_creador: zod_1.default.number(),
                                         fecha_creacion: zod_1.default.date(),
                                         fecha_ultima_actualizacion: zod_1.default.date(),
                                         creador: zod_1.default.object({
@@ -298,6 +418,17 @@ function documentosRoutes(app) {
                                             nombre_completo: zod_1.default.string().nullable().optional(),
                                             correo_electronico: zod_1.default.string().nullable().optional(),
                                         }),
+                                        version_actual: zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            numero_version: zod_1.default.number(),
+                                            s3_path: zod_1.default.string(),
+                                            s3_bucket_name: zod_1.default.string().nullable().optional(),
+                                            tamano: zod_1.default.number().nullable().optional(),
+                                            hash_integridad: zod_1.default.string().nullable().optional(),
+                                            comentario: zod_1.default.string().nullable().optional(),
+                                            fecha_creacion: zod_1.default.date(),
+                                            activa: zod_1.default.boolean(),
+                                        }).nullable().optional(),
                                     })),
                                 }),
                                 400: zod_1.default.object({
@@ -341,6 +472,15 @@ function documentosRoutes(app) {
                                                         correo_electronico: true,
                                                     },
                                                 },
+                                                versiones: {
+                                                    where: {
+                                                        activa: true,
+                                                    },
+                                                    orderBy: {
+                                                        fecha_creacion: 'desc',
+                                                    },
+                                                    take: 1,
+                                                },
                                             },
                                             orderBy: {
                                                 fecha_creacion: 'desc',
@@ -354,23 +494,29 @@ function documentosRoutes(app) {
                                                 id: doc.id,
                                                 nombre_archivo: doc.nombre_archivo,
                                                 extension: doc.extension,
-                                                tamano: doc.tamano ? Number(doc.tamano) : null,
                                                 tipo_mime: doc.tipo_mime,
                                                 descripcion: doc.descripcion,
                                                 categoria: doc.categoria,
                                                 estado: doc.estado,
-                                                version: doc.version,
                                                 carpeta_id: doc.carpeta_id,
-                                                s3_path: doc.s3_path,
-                                                s3_bucket_name: doc.s3_bucket_name,
-                                                s3_created: doc.s3_created,
-                                                hash_integridad: doc.hash_integridad,
                                                 etiquetas: doc.etiquetas,
                                                 proyecto_id: doc.proyecto_id,
                                                 subido_por: doc.subido_por,
+                                                usuario_creador: doc.usuario_creador,
                                                 fecha_creacion: doc.fecha_creacion,
                                                 fecha_ultima_actualizacion: doc.fecha_ultima_actualizacion,
                                                 creador: doc.creador,
+                                                version_actual: doc.versiones && doc.versiones.length > 0 ? {
+                                                    id: doc.versiones[0].id,
+                                                    numero_version: doc.versiones[0].numero_version,
+                                                    s3_path: doc.versiones[0].s3_path,
+                                                    s3_bucket_name: doc.versiones[0].s3_bucket_name,
+                                                    tamano: doc.versiones[0].tamano ? Number(doc.versiones[0].tamano) : null,
+                                                    hash_integridad: doc.versiones[0].hash_integridad,
+                                                    comentario: doc.versiones[0].comentario,
+                                                    fecha_creacion: doc.versiones[0].fecha_creacion,
+                                                    activa: doc.versiones[0].activa,
+                                                } : null,
                                             }); }),
                                         })];
                                 case 3:
@@ -412,11 +558,11 @@ function documentosRoutes(app) {
                             },
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var documentoId, documento, error_3, error_4;
+                        var documentoId, documento, currentVersion, error_3, error_4;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
-                                    _a.trys.push([0, 8, , 9]);
+                                    _a.trys.push([0, 9, , 10]);
                                     documentoId = request.params.documentoId;
                                     return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
                                             where: {
@@ -432,6 +578,14 @@ function documentosRoutes(app) {
                                     if (documento.eliminado) {
                                         throw new bad_request_error_1.BadRequestError('Document is already deleted');
                                     }
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                            where: {
+                                                documento_id: documentoId,
+                                                activa: true,
+                                            },
+                                        })];
+                                case 2:
+                                    currentVersion = _a.sent();
                                     // Create audit record first (before deleting the document)
                                     return [4 /*yield*/, prisma_1.prisma.archivo_historial.create({
                                             data: {
@@ -439,26 +593,26 @@ function documentosRoutes(app) {
                                                 usuario_id: 1, // Default user ID - should be passed as parameter
                                                 accion: 'soft_delete',
                                                 descripcion: 'Document marked as deleted (soft delete in DB, hard delete in MinIO)',
-                                                version_anterior: documento.version,
+                                                version_anterior: (currentVersion === null || currentVersion === void 0 ? void 0 : currentVersion.numero_version) ? String(currentVersion.numero_version) : 'unknown',
                                             },
                                         })];
-                                case 2:
+                                case 3:
                                     // Create audit record first (before deleting the document)
                                     _a.sent();
-                                    if (!documento.s3_path) return [3 /*break*/, 6];
-                                    _a.label = 3;
-                                case 3:
-                                    _a.trys.push([3, 5, , 6]);
-                                    return [4 /*yield*/, minio_utils_1.minioClient.removeObject(minio_utils_1.BUCKET_NAME, documento.s3_path)];
+                                    if (!(currentVersion === null || currentVersion === void 0 ? void 0 : currentVersion.s3_path)) return [3 /*break*/, 7];
+                                    _a.label = 4;
                                 case 4:
-                                    _a.sent();
-                                    console.log("File deleted from MinIO: ".concat(documento.s3_path));
-                                    return [3 /*break*/, 6];
+                                    _a.trys.push([4, 6, , 7]);
+                                    return [4 /*yield*/, minio_utils_1.minioClient.removeObject(minio_utils_1.BUCKET_NAME, currentVersion.s3_path)];
                                 case 5:
+                                    _a.sent();
+                                    console.log("File deleted from MinIO: ".concat(currentVersion.s3_path));
+                                    return [3 /*break*/, 7];
+                                case 6:
                                     error_3 = _a.sent();
                                     console.error('Error deleting from MinIO:', error_3);
-                                    return [3 /*break*/, 6];
-                                case 6: 
+                                    return [3 /*break*/, 7];
+                                case 7: 
                                 // Soft delete - mark as deleted in database but keep record
                                 return [4 /*yield*/, prisma_1.prisma.documentos.update({
                                         where: {
@@ -469,21 +623,21 @@ function documentosRoutes(app) {
                                             fecha_ultima_actualizacion: new Date(),
                                         },
                                     })];
-                                case 7:
+                                case 8:
                                     // Soft delete - mark as deleted in database but keep record
                                     _a.sent();
                                     return [2 /*return*/, reply.send({
                                             success: true,
                                             message: 'Document deleted successfully (soft delete in DB, hard delete in MinIO)',
                                         })];
-                                case 8:
+                                case 9:
                                     error_4 = _a.sent();
                                     console.error('Error deleting document:', error_4);
                                     if (error_4 instanceof bad_request_error_1.BadRequestError || error_4 instanceof unauthorized_error_1.UnauthorizedError) {
                                         throw error_4;
                                     }
                                     throw new bad_request_error_1.BadRequestError('Failed to delete document');
-                                case 9: return [2 /*return*/];
+                                case 10: return [2 /*return*/];
                             }
                         });
                     }); });
@@ -516,11 +670,11 @@ function documentosRoutes(app) {
                             },
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var documentoId, documento, presignedUrl, error_5;
+                        var documentoId, documento, currentVersion, presignedUrl, error_5;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
-                                    _a.trys.push([0, 3, , 4]);
+                                    _a.trys.push([0, 4, , 5]);
                                     documentoId = request.params.documentoId;
                                     return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
                                             where: {
@@ -533,27 +687,35 @@ function documentosRoutes(app) {
                                     if (!documento) {
                                         throw new bad_request_error_1.BadRequestError('Document not found or has been deleted');
                                     }
-                                    // Check if document has S3 path
-                                    if (!documento.s3_path) {
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                            where: {
+                                                documento_id: documentoId,
+                                                activa: true,
+                                            },
+                                        })];
+                                case 2:
+                                    currentVersion = _a.sent();
+                                    // Check if document has a current version with S3 path
+                                    if (!(currentVersion === null || currentVersion === void 0 ? void 0 : currentVersion.s3_path)) {
                                         throw new bad_request_error_1.BadRequestError('Document not found in storage');
                                     }
-                                    return [4 /*yield*/, minio_utils_1.minioClient.presignedGetObject(minio_utils_1.BUCKET_NAME, documento.s3_path, 24 * 60 * 60 // 24 hours expiration
+                                    return [4 /*yield*/, minio_utils_1.minioClient.presignedGetObject(minio_utils_1.BUCKET_NAME, currentVersion.s3_path, 24 * 60 * 60 // 24 hours expiration
                                         )];
-                                case 2:
+                                case 3:
                                     presignedUrl = _a.sent();
                                     return [2 /*return*/, reply.send({
                                             success: true,
                                             message: 'Download URL generated successfully',
                                             url: presignedUrl,
                                         })];
-                                case 3:
+                                case 4:
                                     error_5 = _a.sent();
                                     console.error('Error generating download URL:', error_5);
                                     if (error_5 instanceof bad_request_error_1.BadRequestError || error_5 instanceof unauthorized_error_1.UnauthorizedError) {
                                         throw error_5;
                                     }
                                     throw new bad_request_error_1.BadRequestError('Failed to generate download URL');
-                                case 4: return [2 /*return*/];
+                                case 5: return [2 /*return*/];
                             }
                         });
                     }); });
@@ -572,20 +734,15 @@ function documentosRoutes(app) {
                                         id: zod_1.default.string(),
                                         nombre_archivo: zod_1.default.string(),
                                         extension: zod_1.default.string().nullable(),
-                                        tamano: zod_1.default.number().nullable(),
                                         tipo_mime: zod_1.default.string().nullable(),
                                         descripcion: zod_1.default.string().nullable(),
                                         categoria: zod_1.default.string().nullable(),
                                         estado: zod_1.default.string().nullable(),
-                                        version: zod_1.default.string().nullable(),
                                         carpeta_id: zod_1.default.number(),
-                                        s3_path: zod_1.default.string().nullable(),
-                                        s3_bucket_name: zod_1.default.string().nullable(),
-                                        s3_created: zod_1.default.boolean().nullable(),
-                                        hash_integridad: zod_1.default.string().nullable(),
                                         etiquetas: zod_1.default.array(zod_1.default.string()),
                                         proyecto_id: zod_1.default.number().nullable(),
                                         subido_por: zod_1.default.number(),
+                                        usuario_creador: zod_1.default.number(),
                                         fecha_creacion: zod_1.default.date(),
                                         fecha_ultima_actualizacion: zod_1.default.date(),
                                         creador: zod_1.default.object({
@@ -634,20 +791,15 @@ function documentosRoutes(app) {
                                                 id: doc.id,
                                                 nombre_archivo: doc.nombre_archivo,
                                                 extension: doc.extension,
-                                                tamano: doc.tamano ? Number(doc.tamano) : null,
                                                 tipo_mime: doc.tipo_mime,
                                                 descripcion: doc.descripcion,
                                                 categoria: doc.categoria,
                                                 estado: doc.estado,
-                                                version: doc.version,
                                                 carpeta_id: doc.carpeta_id,
-                                                s3_path: doc.s3_path,
-                                                s3_bucket_name: doc.s3_bucket_name,
-                                                s3_created: doc.s3_created,
-                                                hash_integridad: doc.hash_integridad,
                                                 etiquetas: doc.etiquetas,
                                                 proyecto_id: doc.proyecto_id,
                                                 subido_por: doc.subido_por,
+                                                usuario_creador: doc.usuario_creador,
                                                 fecha_creacion: doc.fecha_creacion,
                                                 fecha_ultima_actualizacion: doc.fecha_ultima_actualizacion,
                                                 creador: doc.creador,
@@ -682,12 +834,12 @@ function documentosRoutes(app) {
                             // No response schema - allows any response type including streams
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var documentoId, _a, _b, chunked, filename, documento, path, fileName, stats, fileSize, contentType, range, supportsRange, parts, start, end, chunksize, stream, stream, error_7;
+                        var documentoId, _a, _b, chunked, filename, documento, currentVersion, path, fileName, stats, fileSize, contentType, range, supportsRange, parts, start, end, chunksize, stream, stream, error_7;
                         var _c, _d;
                         return __generator(this, function (_e) {
                             switch (_e.label) {
                                 case 0:
-                                    _e.trys.push([0, 7, , 8]);
+                                    _e.trys.push([0, 8, , 9]);
                                     documentoId = request.params.documentoId;
                                     _a = request.query, _b = _a.chunked, chunked = _b === void 0 ? false : _b, filename = _a.filename;
                                     return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
@@ -701,20 +853,28 @@ function documentosRoutes(app) {
                                     if (!documento) {
                                         throw new bad_request_error_1.BadRequestError('Document not found or has been deleted');
                                     }
-                                    // Check if document has S3 path
-                                    if (!documento.s3_path) {
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                            where: {
+                                                documento_id: documentoId,
+                                                activa: true,
+                                            },
+                                        })];
+                                case 2:
+                                    currentVersion = _e.sent();
+                                    // Check if document has a current version with S3 path
+                                    if (!(currentVersion === null || currentVersion === void 0 ? void 0 : currentVersion.s3_path)) {
                                         throw new bad_request_error_1.BadRequestError('Document not found in storage');
                                     }
-                                    path = documento.s3_path;
+                                    path = currentVersion.s3_path;
                                     fileName = filename || documento.nombre_archivo || path.split('/').pop() || 'file';
                                     return [4 /*yield*/, minio_utils_1.minioClient.statObject(minio_utils_1.BUCKET_NAME, path)];
-                                case 2:
+                                case 3:
                                     stats = _e.sent();
                                     fileSize = stats.size;
                                     contentType = ((_c = stats.metaData) === null || _c === void 0 ? void 0 : _c['content-type']) || documento.tipo_mime || 'application/octet-stream';
                                     range = request.headers.range;
                                     supportsRange = range && chunked;
-                                    if (!supportsRange) return [3 /*break*/, 4];
+                                    if (!supportsRange) return [3 /*break*/, 5];
                                     parts = range.replace(/bytes=/, "").split("-");
                                     start = parseInt(parts[0], 10);
                                     end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
@@ -734,11 +894,11 @@ function documentosRoutes(app) {
                                     reply.header('Content-Type', contentType);
                                     reply.header('Content-Disposition', "attachment; filename=\"".concat(fileName, "\""));
                                     return [4 /*yield*/, minio_utils_1.minioClient.getPartialObject(minio_utils_1.BUCKET_NAME, path, start, end)];
-                                case 3:
+                                case 4:
                                     stream = _e.sent();
                                     return [2 /*return*/, reply.send(stream)];
-                                case 4: return [4 /*yield*/, minio_utils_1.minioClient.getObject(minio_utils_1.BUCKET_NAME, path)];
-                                case 5:
+                                case 5: return [4 /*yield*/, minio_utils_1.minioClient.getObject(minio_utils_1.BUCKET_NAME, path)];
+                                case 6:
                                     stream = _e.sent();
                                     // Set headers
                                     reply.header('Content-Type', contentType);
@@ -760,8 +920,8 @@ function documentosRoutes(app) {
                                     }
                                     // Return the stream
                                     return [2 /*return*/, reply.send(stream)];
-                                case 6: return [3 /*break*/, 8];
-                                case 7:
+                                case 7: return [3 /*break*/, 9];
+                                case 8:
                                     error_7 = _e.sent();
                                     console.error('Error downloading document:', error_7);
                                     if (error_7 instanceof bad_request_error_1.BadRequestError || error_7 instanceof unauthorized_error_1.UnauthorizedError) {
@@ -780,7 +940,7 @@ function documentosRoutes(app) {
                                     return [2 /*return*/, reply.status(500).send({
                                             error: 'Failed to download file'
                                         })];
-                                case 8: return [2 /*return*/];
+                                case 9: return [2 /*return*/];
                             }
                         });
                     }); });
@@ -825,12 +985,12 @@ function documentosRoutes(app) {
                             }
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var documentoId, _a, includeMetadata, documento, path, fileName, stats, metadata, downloadUrl, error_8;
+                        var documentoId, _a, includeMetadata, documento, currentVersion, path, fileName, stats, metadata, downloadUrl, error_8;
                         var _b;
                         return __generator(this, function (_c) {
                             switch (_c.label) {
                                 case 0:
-                                    _c.trys.push([0, 6, , 7]);
+                                    _c.trys.push([0, 7, , 8]);
                                     documentoId = request.params.documentoId;
                                     _a = request.query.includeMetadata, includeMetadata = _a === void 0 ? true : _a;
                                     return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
@@ -844,14 +1004,22 @@ function documentosRoutes(app) {
                                     if (!documento) {
                                         throw new bad_request_error_1.BadRequestError('Document not found or has been deleted');
                                     }
-                                    // Check if document has S3 path
-                                    if (!documento.s3_path) {
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                            where: {
+                                                documento_id: documentoId,
+                                                activa: true,
+                                            },
+                                        })];
+                                case 2:
+                                    currentVersion = _c.sent();
+                                    // Check if document has a current version with S3 path
+                                    if (!(currentVersion === null || currentVersion === void 0 ? void 0 : currentVersion.s3_path)) {
                                         throw new bad_request_error_1.BadRequestError('Document not found in storage');
                                     }
-                                    path = documento.s3_path;
+                                    path = currentVersion.s3_path;
                                     fileName = documento.nombre_archivo || path.split('/').pop() || 'file';
                                     return [4 /*yield*/, minio_utils_1.minioClient.statObject(minio_utils_1.BUCKET_NAME, path)];
-                                case 2:
+                                case 3:
                                     stats = _c.sent();
                                     metadata = {
                                         name: fileName,
@@ -862,15 +1030,15 @@ function documentosRoutes(app) {
                                         etag: stats.etag,
                                         versionId: stats.versionId
                                     };
-                                    if (!includeMetadata) return [3 /*break*/, 3];
+                                    if (!includeMetadata) return [3 /*break*/, 4];
                                     return [2 /*return*/, reply.send({
                                             success: true,
                                             message: 'File metadata retrieved successfully',
                                             metadata: metadata
                                         })];
-                                case 3: return [4 /*yield*/, minio_utils_1.minioClient.presignedGetObject(minio_utils_1.BUCKET_NAME, path, 60 * 60 // 1 hour expiration
+                                case 4: return [4 /*yield*/, minio_utils_1.minioClient.presignedGetObject(minio_utils_1.BUCKET_NAME, path, 60 * 60 // 1 hour expiration
                                     )];
-                                case 4:
+                                case 5:
                                     downloadUrl = _c.sent();
                                     return [2 /*return*/, reply.send({
                                             success: true,
@@ -878,8 +1046,8 @@ function documentosRoutes(app) {
                                             metadata: metadata,
                                             downloadUrl: downloadUrl
                                         })];
-                                case 5: return [3 /*break*/, 7];
-                                case 6:
+                                case 6: return [3 /*break*/, 8];
+                                case 7:
                                     error_8 = _c.sent();
                                     console.error('Error getting document info:', error_8);
                                     if (error_8 instanceof bad_request_error_1.BadRequestError || error_8 instanceof unauthorized_error_1.UnauthorizedError) {
@@ -893,7 +1061,7 @@ function documentosRoutes(app) {
                                     return [2 /*return*/, reply.status(500).send({
                                             error: 'Failed to get file information'
                                         })];
-                                case 7: return [2 /*return*/];
+                                case 8: return [2 /*return*/];
                             }
                         });
                     }); });
@@ -909,7 +1077,8 @@ function documentosRoutes(app) {
                                 documentoId: zod_1.default.string().uuid(),
                             }),
                             querystring: zod_1.default.object({
-                                maxSize: zod_1.default.number().optional().default(10 * 1024 * 1024) // 10MB default max
+                                maxSize: zod_1.default.number().optional().default(10 * 1024 * 1024), // 10MB default max
+                                version: zod_1.default.number().optional() // Optional version number to download specific version
                             }),
                             response: {
                                 200: zod_1.default.object({
@@ -939,15 +1108,15 @@ function documentosRoutes(app) {
                             }
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var documentoId, _a, maxSize, documento, path, fileName, fileExtension, stats, fileSize, contentType, stream, chunks, _b, stream_1, stream_1_1, chunk, e_1_1, buffer, base64, error_9;
-                        var _c, e_1, _d, _e;
-                        var _f;
-                        return __generator(this, function (_g) {
-                            switch (_g.label) {
+                        var documentoId, _a, _b, maxSize, version, documento, targetVersion, path, fileName, fileExtension, stats, fileSize, contentType, stream, chunks, _c, stream_1, stream_1_1, chunk, e_1_1, buffer, base64, error_9;
+                        var _d, e_1, _e, _f;
+                        var _g;
+                        return __generator(this, function (_h) {
+                            switch (_h.label) {
                                 case 0:
-                                    _g.trys.push([0, 16, , 17]);
+                                    _h.trys.push([0, 20, , 21]);
                                     documentoId = request.params.documentoId;
-                                    _a = request.query.maxSize, maxSize = _a === void 0 ? 10 * 1024 * 1024 : _a;
+                                    _a = request.query, _b = _a.maxSize, maxSize = _b === void 0 ? 10 * 1024 * 1024 : _b, version = _a.version;
                                     return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
                                             where: {
                                                 id: documentoId,
@@ -955,22 +1124,48 @@ function documentosRoutes(app) {
                                             },
                                         })];
                                 case 1:
-                                    documento = _g.sent();
+                                    documento = _h.sent();
                                     if (!documento) {
                                         throw new bad_request_error_1.BadRequestError('Document not found or has been deleted');
                                     }
-                                    // Check if document has S3 path
-                                    if (!documento.s3_path) {
+                                    targetVersion = void 0;
+                                    if (!(version !== undefined)) return [3 /*break*/, 3];
+                                    return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                            where: {
+                                                documento_id: documentoId,
+                                                numero_version: version,
+                                            },
+                                        })];
+                                case 2:
+                                    // Look for specific version
+                                    targetVersion = _h.sent();
+                                    if (!targetVersion) {
+                                        throw new bad_request_error_1.BadRequestError("Version ".concat(version, " not found for this document"));
+                                    }
+                                    return [3 /*break*/, 5];
+                                case 3: return [4 /*yield*/, prisma_1.prisma.documento_versiones.findFirst({
+                                        where: {
+                                            documento_id: documentoId,
+                                            activa: true,
+                                        },
+                                    })];
+                                case 4:
+                                    // Get the current active version
+                                    targetVersion = _h.sent();
+                                    _h.label = 5;
+                                case 5:
+                                    // Check if document has a target version with S3 path
+                                    if (!(targetVersion === null || targetVersion === void 0 ? void 0 : targetVersion.s3_path)) {
                                         throw new bad_request_error_1.BadRequestError('Document not found in storage');
                                     }
-                                    path = documento.s3_path;
+                                    path = targetVersion.s3_path;
                                     fileName = documento.nombre_archivo || path.split('/').pop() || 'file';
                                     fileExtension = documento.extension;
                                     return [4 /*yield*/, minio_utils_1.minioClient.statObject(minio_utils_1.BUCKET_NAME, path)];
-                                case 2:
-                                    stats = _g.sent();
+                                case 6:
+                                    stats = _h.sent();
                                     fileSize = stats.size;
-                                    contentType = ((_f = stats.metaData) === null || _f === void 0 ? void 0 : _f['content-type']) || documento.tipo_mime || 'application/octet-stream';
+                                    contentType = ((_g = stats.metaData) === null || _g === void 0 ? void 0 : _g['content-type']) || documento.tipo_mime || 'application/octet-stream';
                                     // Check file size limit
                                     if (fileSize > maxSize) {
                                         return [2 /*return*/, reply.status(413).send({
@@ -978,43 +1173,43 @@ function documentosRoutes(app) {
                                             })];
                                     }
                                     return [4 /*yield*/, minio_utils_1.minioClient.getObject(minio_utils_1.BUCKET_NAME, path)];
-                                case 3:
-                                    stream = _g.sent();
-                                    chunks = [];
-                                    _g.label = 4;
-                                case 4:
-                                    _g.trys.push([4, 9, 10, 15]);
-                                    _b = true, stream_1 = __asyncValues(stream);
-                                    _g.label = 5;
-                                case 5: return [4 /*yield*/, stream_1.next()];
-                                case 6:
-                                    if (!(stream_1_1 = _g.sent(), _c = stream_1_1.done, !_c)) return [3 /*break*/, 8];
-                                    _e = stream_1_1.value;
-                                    _b = false;
-                                    chunk = _e;
-                                    chunks.push(chunk);
-                                    _g.label = 7;
                                 case 7:
-                                    _b = true;
-                                    return [3 /*break*/, 5];
-                                case 8: return [3 /*break*/, 15];
-                                case 9:
-                                    e_1_1 = _g.sent();
-                                    e_1 = { error: e_1_1 };
-                                    return [3 /*break*/, 15];
+                                    stream = _h.sent();
+                                    chunks = [];
+                                    _h.label = 8;
+                                case 8:
+                                    _h.trys.push([8, 13, 14, 19]);
+                                    _c = true, stream_1 = __asyncValues(stream);
+                                    _h.label = 9;
+                                case 9: return [4 /*yield*/, stream_1.next()];
                                 case 10:
-                                    _g.trys.push([10, , 13, 14]);
-                                    if (!(!_b && !_c && (_d = stream_1.return))) return [3 /*break*/, 12];
-                                    return [4 /*yield*/, _d.call(stream_1)];
+                                    if (!(stream_1_1 = _h.sent(), _d = stream_1_1.done, !_d)) return [3 /*break*/, 12];
+                                    _f = stream_1_1.value;
+                                    _c = false;
+                                    chunk = _f;
+                                    chunks.push(chunk);
+                                    _h.label = 11;
                                 case 11:
-                                    _g.sent();
-                                    _g.label = 12;
-                                case 12: return [3 /*break*/, 14];
+                                    _c = true;
+                                    return [3 /*break*/, 9];
+                                case 12: return [3 /*break*/, 19];
                                 case 13:
+                                    e_1_1 = _h.sent();
+                                    e_1 = { error: e_1_1 };
+                                    return [3 /*break*/, 19];
+                                case 14:
+                                    _h.trys.push([14, , 17, 18]);
+                                    if (!(!_c && !_d && (_e = stream_1.return))) return [3 /*break*/, 16];
+                                    return [4 /*yield*/, _e.call(stream_1)];
+                                case 15:
+                                    _h.sent();
+                                    _h.label = 16;
+                                case 16: return [3 /*break*/, 18];
+                                case 17:
                                     if (e_1) throw e_1.error;
                                     return [7 /*endfinally*/];
-                                case 14: return [7 /*endfinally*/];
-                                case 15:
+                                case 18: return [7 /*endfinally*/];
+                                case 19:
                                     buffer = Buffer.concat(chunks);
                                     base64 = buffer.toString('base64');
                                     return [2 /*return*/, reply.send({
@@ -1029,8 +1224,8 @@ function documentosRoutes(app) {
                                                 path: path
                                             }
                                         })];
-                                case 16:
-                                    error_9 = _g.sent();
+                                case 20:
+                                    error_9 = _h.sent();
                                     console.error('Error downloading document as base64:', error_9);
                                     if (error_9 instanceof bad_request_error_1.BadRequestError || error_9 instanceof unauthorized_error_1.UnauthorizedError) {
                                         throw error_9;
@@ -1048,7 +1243,7 @@ function documentosRoutes(app) {
                                     return [2 /*return*/, reply.status(500).send({
                                             error: 'Failed to download file as base64'
                                         })];
-                                case 17: return [2 /*return*/];
+                                case 21: return [2 /*return*/];
                             }
                         });
                     }); });
@@ -1129,24 +1324,16 @@ function documentosRoutes(app) {
                                         id: zod_1.default.string(),
                                         nombre_archivo: zod_1.default.string(),
                                         extension: zod_1.default.string().nullable(),
-                                        tamano: zod_1.default.number().nullable(),
                                         tipo_mime: zod_1.default.string().nullable(),
                                         descripcion: zod_1.default.string().nullable(),
                                         categoria: zod_1.default.string().nullable(),
                                         estado: zod_1.default.string().nullable(),
-                                        version: zod_1.default.string().nullable(),
-                                        archivo_relacionado: zod_1.default.string().nullable(),
                                         carpeta_id: zod_1.default.number(),
                                         tipo_documento_id: zod_1.default.number().nullable(),
-                                        s3_path: zod_1.default.string().nullable(),
-                                        s3_bucket_name: zod_1.default.string().nullable(),
-                                        s3_created: zod_1.default.boolean(),
-                                        hash_integridad: zod_1.default.string().nullable(),
                                         etiquetas: zod_1.default.array(zod_1.default.string()),
                                         proyecto_id: zod_1.default.number().nullable(),
                                         usuario_creador: zod_1.default.number(),
                                         subido_por: zod_1.default.number(),
-                                        metadata: zod_1.default.any().nullable(),
                                         eliminado: zod_1.default.boolean(),
                                         fecha_creacion: zod_1.default.date(),
                                         fecha_ultima_actualizacion: zod_1.default.date(),
@@ -1180,18 +1367,30 @@ function documentosRoutes(app) {
                                             requiere_numerar: zod_1.default.boolean(),
                                             requiere_tramitar: zod_1.default.boolean(),
                                         }).nullable(),
-                                        documento_relacionado: zod_1.default.object({
-                                            id: zod_1.default.string(),
-                                            nombre_archivo: zod_1.default.string(),
-                                            extension: zod_1.default.string().nullable(),
-                                            descripcion: zod_1.default.string().nullable(),
-                                        }).nullable(),
-                                        documentos_relacionados: zod_1.default.array(zod_1.default.object({
-                                            id: zod_1.default.string(),
-                                            nombre_archivo: zod_1.default.string(),
-                                            extension: zod_1.default.string().nullable(),
-                                            descripcion: zod_1.default.string().nullable(),
-                                        }))
+                                        version_actual: zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            numero_version: zod_1.default.number(),
+                                            s3_path: zod_1.default.string(),
+                                            s3_bucket_name: zod_1.default.string().nullable().optional(),
+                                            tamano: zod_1.default.number().nullable().optional(),
+                                            hash_integridad: zod_1.default.string().nullable().optional(),
+                                            comentario: zod_1.default.string().nullable().optional(),
+                                            fecha_creacion: zod_1.default.date(),
+                                            activa: zod_1.default.boolean(),
+                                            metadata: zod_1.default.any().nullable().optional(),
+                                        }).nullable().optional(),
+                                        versiones: zod_1.default.array(zod_1.default.object({
+                                            id: zod_1.default.number(),
+                                            numero_version: zod_1.default.number(),
+                                            s3_path: zod_1.default.string(),
+                                            s3_bucket_name: zod_1.default.string().nullable().optional(),
+                                            tamano: zod_1.default.number().nullable().optional(),
+                                            hash_integridad: zod_1.default.string().nullable().optional(),
+                                            comentario: zod_1.default.string().nullable().optional(),
+                                            fecha_creacion: zod_1.default.date(),
+                                            activa: zod_1.default.boolean(),
+                                            metadata: zod_1.default.any().nullable().optional(),
+                                        })),
                                     }),
                                 }),
                                 400: zod_1.default.object({
@@ -1256,22 +1455,11 @@ function documentosRoutes(app) {
                                                         requiere_tramitar: true,
                                                     },
                                                 },
-                                                documento_relacionado: {
-                                                    select: {
-                                                        id: true,
-                                                        nombre_archivo: true,
-                                                        extension: true,
-                                                        descripcion: true,
+                                                versiones: {
+                                                    orderBy: {
+                                                        numero_version: 'desc',
                                                     },
                                                 },
-                                                documentos_relacionados: {
-                                                    select: {
-                                                        id: true,
-                                                        nombre_archivo: true,
-                                                        extension: true,
-                                                        descripcion: true,
-                                                    },
-                                                }
                                             },
                                         })];
                                 case 1:
@@ -1285,24 +1473,16 @@ function documentosRoutes(app) {
                                                 id: documento.id,
                                                 nombre_archivo: documento.nombre_archivo,
                                                 extension: documento.extension,
-                                                tamano: documento.tamano ? Number(documento.tamano) : null,
                                                 tipo_mime: documento.tipo_mime,
                                                 descripcion: documento.descripcion,
                                                 categoria: documento.categoria,
                                                 estado: documento.estado,
-                                                version: documento.version,
-                                                archivo_relacionado: documento.archivo_relacionado,
                                                 carpeta_id: documento.carpeta_id,
                                                 tipo_documento_id: documento.tipo_documento_id,
-                                                s3_path: documento.s3_path,
-                                                s3_bucket_name: documento.s3_bucket_name,
-                                                s3_created: documento.s3_created,
-                                                hash_integridad: documento.hash_integridad,
                                                 etiquetas: documento.etiquetas,
                                                 proyecto_id: documento.proyecto_id,
                                                 usuario_creador: documento.usuario_creador,
                                                 subido_por: documento.subido_por,
-                                                metadata: documento.metadata,
                                                 eliminado: documento.eliminado,
                                                 fecha_creacion: documento.fecha_creacion,
                                                 fecha_ultima_actualizacion: documento.fecha_ultima_actualizacion,
@@ -1311,8 +1491,30 @@ function documentosRoutes(app) {
                                                 subio_por: documento.subio_por,
                                                 proyecto: documento.proyecto,
                                                 tipo_documento: documento.tipo_documento,
-                                                documento_relacionado: documento.documento_relacionado,
-                                                documentos_relacionados: documento.documentos_relacionados
+                                                version_actual: documento.versiones && documento.versiones.length > 0 ? {
+                                                    id: documento.versiones[0].id,
+                                                    numero_version: documento.versiones[0].numero_version,
+                                                    s3_path: documento.versiones[0].s3_path,
+                                                    s3_bucket_name: documento.versiones[0].s3_bucket_name,
+                                                    tamano: documento.versiones[0].tamano ? Number(documento.versiones[0].tamano) : null,
+                                                    hash_integridad: documento.versiones[0].hash_integridad,
+                                                    comentario: documento.versiones[0].comentario,
+                                                    fecha_creacion: documento.versiones[0].fecha_creacion,
+                                                    activa: documento.versiones[0].activa,
+                                                    metadata: documento.versiones[0].metadata,
+                                                } : null,
+                                                versiones: documento.versiones.map(function (version) { return ({
+                                                    id: version.id,
+                                                    numero_version: version.numero_version,
+                                                    s3_path: version.s3_path,
+                                                    s3_bucket_name: version.s3_bucket_name,
+                                                    tamano: version.tamano ? Number(version.tamano) : null,
+                                                    hash_integridad: version.hash_integridad,
+                                                    comentario: version.comentario,
+                                                    fecha_creacion: version.fecha_creacion,
+                                                    activa: version.activa,
+                                                    metadata: version.metadata,
+                                                }); }),
                                             },
                                         })];
                                 case 2:
@@ -1685,11 +1887,8 @@ function documentosRoutes(app) {
                                 descripcion: zod_1.default.string().nullable().optional(),
                                 categoria: zod_1.default.string().nullable().optional(),
                                 estado: zod_1.default.string().nullable().optional(),
-                                version: zod_1.default.string().nullable().optional(),
-                                archivo_relacionado: zod_1.default.string().nullable().optional(),
                                 tipo_documento_id: zod_1.default.number().nullable().optional(),
                                 etiquetas: zod_1.default.array(zod_1.default.string()).optional(),
-                                metadata: zod_1.default.any().optional(),
                             }),
                             response: {
                                 200: zod_1.default.object({
@@ -1699,24 +1898,16 @@ function documentosRoutes(app) {
                                         id: zod_1.default.string(),
                                         nombre_archivo: zod_1.default.string(),
                                         extension: zod_1.default.string().nullable(),
-                                        tamano: zod_1.default.number().nullable(),
                                         tipo_mime: zod_1.default.string().nullable(),
                                         descripcion: zod_1.default.string().nullable(),
                                         categoria: zod_1.default.string().nullable(),
                                         estado: zod_1.default.string().nullable(),
-                                        version: zod_1.default.string().nullable(),
-                                        archivo_relacionado: zod_1.default.string().nullable(),
                                         carpeta_id: zod_1.default.number(),
                                         tipo_documento_id: zod_1.default.number().nullable(),
-                                        s3_path: zod_1.default.string().nullable(),
-                                        s3_bucket_name: zod_1.default.string().nullable(),
-                                        s3_created: zod_1.default.boolean(),
-                                        hash_integridad: zod_1.default.string().nullable(),
                                         etiquetas: zod_1.default.array(zod_1.default.string()),
                                         proyecto_id: zod_1.default.number().nullable(),
                                         usuario_creador: zod_1.default.number(),
                                         subido_por: zod_1.default.number(),
-                                        metadata: zod_1.default.any().nullable(),
                                         eliminado: zod_1.default.boolean(),
                                         fecha_creacion: zod_1.default.date(),
                                         fecha_ultima_actualizacion: zod_1.default.date(),
@@ -1750,18 +1941,6 @@ function documentosRoutes(app) {
                                             requiere_numerar: zod_1.default.boolean(),
                                             requiere_tramitar: zod_1.default.boolean(),
                                         }).nullable(),
-                                        documento_relacionado: zod_1.default.object({
-                                            id: zod_1.default.string(),
-                                            nombre_archivo: zod_1.default.string(),
-                                            extension: zod_1.default.string().nullable(),
-                                            descripcion: zod_1.default.string().nullable(),
-                                        }).nullable(),
-                                        documentos_relacionados: zod_1.default.array(zod_1.default.object({
-                                            id: zod_1.default.string(),
-                                            nombre_archivo: zod_1.default.string(),
-                                            extension: zod_1.default.string().nullable(),
-                                            descripcion: zod_1.default.string().nullable(),
-                                        }))
                                     }),
                                 }),
                                 400: zod_1.default.object({
@@ -1776,11 +1955,11 @@ function documentosRoutes(app) {
                             },
                         },
                     }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                        var documentoId, updateData, existingDocumento, tipoDocumento, documentoRelacionado, dataToUpdate, documentoActualizado, error_16;
+                        var documentoId, updateData, existingDocumento, tipoDocumento, dataToUpdate, documentoActualizado, error_16;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
-                                    _a.trys.push([0, 8, , 9]);
+                                    _a.trys.push([0, 6, , 7]);
                                     documentoId = request.params.documentoId;
                                     updateData = request.body;
                                     return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
@@ -1808,20 +1987,6 @@ function documentosRoutes(app) {
                                     }
                                     _a.label = 3;
                                 case 3:
-                                    if (!(updateData.archivo_relacionado !== undefined && updateData.archivo_relacionado !== null)) return [3 /*break*/, 5];
-                                    return [4 /*yield*/, prisma_1.prisma.documentos.findFirst({
-                                            where: {
-                                                id: updateData.archivo_relacionado,
-                                                eliminado: false,
-                                            },
-                                        })];
-                                case 4:
-                                    documentoRelacionado = _a.sent();
-                                    if (!documentoRelacionado) {
-                                        throw new bad_request_error_1.BadRequestError('Related document not found or has been deleted');
-                                    }
-                                    _a.label = 5;
-                                case 5:
                                     dataToUpdate = __assign(__assign({}, updateData), { fecha_ultima_actualizacion: new Date() });
                                     return [4 /*yield*/, prisma_1.prisma.documentos.update({
                                             where: {
@@ -1868,25 +2033,9 @@ function documentosRoutes(app) {
                                                         requiere_tramitar: true,
                                                     },
                                                 },
-                                                documento_relacionado: {
-                                                    select: {
-                                                        id: true,
-                                                        nombre_archivo: true,
-                                                        extension: true,
-                                                        descripcion: true,
-                                                    },
-                                                },
-                                                documentos_relacionados: {
-                                                    select: {
-                                                        id: true,
-                                                        nombre_archivo: true,
-                                                        extension: true,
-                                                        descripcion: true,
-                                                    },
-                                                }
                                             },
                                         })];
-                                case 6:
+                                case 4:
                                     documentoActualizado = _a.sent();
                                     // Create audit record
                                     return [4 /*yield*/, prisma_1.prisma.archivo_historial.create({
@@ -1895,11 +2044,9 @@ function documentosRoutes(app) {
                                                 usuario_id: 1, // Default user ID - should be passed as parameter
                                                 accion: 'update',
                                                 descripcion: 'Document properties updated',
-                                                version_anterior: existingDocumento.version,
-                                                version_nueva: documentoActualizado.version,
                                             },
                                         })];
-                                case 7:
+                                case 5:
                                     // Create audit record
                                     _a.sent();
                                     return [2 /*return*/, reply.send({
@@ -1909,24 +2056,16 @@ function documentosRoutes(app) {
                                                 id: documentoActualizado.id,
                                                 nombre_archivo: documentoActualizado.nombre_archivo,
                                                 extension: documentoActualizado.extension,
-                                                tamano: documentoActualizado.tamano ? Number(documentoActualizado.tamano) : null,
                                                 tipo_mime: documentoActualizado.tipo_mime,
                                                 descripcion: documentoActualizado.descripcion,
                                                 categoria: documentoActualizado.categoria,
                                                 estado: documentoActualizado.estado,
-                                                version: documentoActualizado.version,
-                                                archivo_relacionado: documentoActualizado.archivo_relacionado,
                                                 carpeta_id: documentoActualizado.carpeta_id,
                                                 tipo_documento_id: documentoActualizado.tipo_documento_id,
-                                                s3_path: documentoActualizado.s3_path,
-                                                s3_bucket_name: documentoActualizado.s3_bucket_name,
-                                                s3_created: documentoActualizado.s3_created,
-                                                hash_integridad: documentoActualizado.hash_integridad,
                                                 etiquetas: documentoActualizado.etiquetas,
                                                 proyecto_id: documentoActualizado.proyecto_id,
                                                 usuario_creador: documentoActualizado.usuario_creador,
                                                 subido_por: documentoActualizado.subido_por,
-                                                metadata: documentoActualizado.metadata,
                                                 eliminado: documentoActualizado.eliminado,
                                                 fecha_creacion: documentoActualizado.fecha_creacion,
                                                 fecha_ultima_actualizacion: documentoActualizado.fecha_ultima_actualizacion,
@@ -1935,18 +2074,16 @@ function documentosRoutes(app) {
                                                 subio_por: documentoActualizado.subio_por,
                                                 proyecto: documentoActualizado.proyecto,
                                                 tipo_documento: documentoActualizado.tipo_documento,
-                                                documento_relacionado: documentoActualizado.documento_relacionado,
-                                                documentos_relacionados: documentoActualizado.documentos_relacionados
                                             },
                                         })];
-                                case 8:
+                                case 6:
                                     error_16 = _a.sent();
                                     console.error('Error updating document:', error_16);
                                     if (error_16 instanceof bad_request_error_1.BadRequestError || error_16 instanceof unauthorized_error_1.UnauthorizedError) {
                                         throw error_16;
                                     }
                                     throw new bad_request_error_1.BadRequestError('Failed to update document');
-                                case 9: return [2 /*return*/];
+                                case 7: return [2 /*return*/];
                             }
                         });
                     }); });

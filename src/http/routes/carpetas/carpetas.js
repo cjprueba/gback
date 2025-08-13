@@ -742,7 +742,21 @@ function carpetasRoutes(fastify) {
                                         id: zod_1.default.number(),
                                         nombre: zod_1.default.string(),
                                         descripcion: zod_1.default.string().nullable()
-                                    }).nullable().optional()
+                                    }).nullable().optional(),
+                                    // Lista de todas las versiones del documento
+                                    versiones: zod_1.default.array(zod_1.default.object({
+                                        id: zod_1.default.number(),
+                                        numero_version: zod_1.default.number(),
+                                        s3_path: zod_1.default.string(),
+                                        s3_bucket_name: zod_1.default.string().nullable(),
+                                        tamano: zod_1.default.number().nullable(),
+                                        hash_integridad: zod_1.default.string().nullable(),
+                                        comentario: zod_1.default.string().nullable(),
+                                        fecha_creacion: zod_1.default.date(),
+                                        usuario_creador: zod_1.default.number(),
+                                        activa: zod_1.default.boolean(),
+                                        metadata: zod_1.default.any().nullable()
+                                    }))
                                 }))
                             }),
                             estadisticas: zod_1.default.object({
@@ -762,7 +776,7 @@ function carpetasRoutes(fastify) {
                     }
                 }
             }, function (request, reply) { return __awaiter(_this, void 0, void 0, function () {
-                var id, _a, _b, include_documentos, _c, include_carpetas, _d, limit_documentos, _e, limit_carpetas, _f, sort_documentos, _g, sort_carpetas, _h, sort_order, carpeta, esCarpetaRaiz, response, projectIds, proyecto, proyectosHijos, carpetasHijas, _i, carpetasHijas_1, carpetaHija, totalDocs, totalCarpetasHijas, esCarpetaRaiz_1, documentos, documentosConTipo, documentosFormateados, totalDocumentos, tamanoTotal, tiposUnicos, fechaUltima, error_4;
+                var id, _a, _b, include_documentos, _c, include_carpetas, _d, limit_documentos, _e, limit_carpetas, _f, sort_documentos, _g, sort_carpetas, _h, sort_order_1, carpeta, esCarpetaRaiz, response, projectIds, proyecto, proyectosHijos, carpetasHijas, _i, carpetasHijas_1, carpetaHija, totalDocs, totalCarpetasHijas, esCarpetaRaiz_1, documentos, documentosConTipo, documentosFormateados, totalDocumentos, tamanoTotal, tiposUnicos, fechaUltima, error_4;
                 var _j, _k;
                 var _this = this;
                 return __generator(this, function (_l) {
@@ -770,7 +784,7 @@ function carpetasRoutes(fastify) {
                         case 0:
                             _l.trys.push([0, 18, , 19]);
                             id = request.params.id;
-                            _a = request.query, _b = _a.include_documentos, include_documentos = _b === void 0 ? 'true' : _b, _c = _a.include_carpetas, include_carpetas = _c === void 0 ? 'true' : _c, _d = _a.limit_documentos, limit_documentos = _d === void 0 ? '50' : _d, _e = _a.limit_carpetas, limit_carpetas = _e === void 0 ? '50' : _e, _f = _a.sort_documentos, sort_documentos = _f === void 0 ? 'nombre_archivo' : _f, _g = _a.sort_carpetas, sort_carpetas = _g === void 0 ? 'orden_visualizacion' : _g, _h = _a.sort_order, sort_order = _h === void 0 ? 'asc' : _h;
+                            _a = request.query, _b = _a.include_documentos, include_documentos = _b === void 0 ? 'true' : _b, _c = _a.include_carpetas, include_carpetas = _c === void 0 ? 'true' : _c, _d = _a.limit_documentos, limit_documentos = _d === void 0 ? '50' : _d, _e = _a.limit_carpetas, limit_carpetas = _e === void 0 ? '50' : _e, _f = _a.sort_documentos, sort_documentos = _f === void 0 ? 'nombre_archivo' : _f, _g = _a.sort_carpetas, sort_carpetas = _g === void 0 ? 'orden_visualizacion' : _g, _h = _a.sort_order, sort_order_1 = _h === void 0 ? 'asc' : _h;
                             return [4 /*yield*/, prisma_1.prisma.carpetas.findUnique({
                                     where: { id: parseInt(id) },
                                     include: {
@@ -888,7 +902,7 @@ function carpetasRoutes(fastify) {
                                     }
                                 },
                                 orderBy: (_j = {},
-                                    _j[sort_carpetas] = sort_order,
+                                    _j[sort_carpetas] = sort_order_1,
                                     _j),
                                 take: parseInt(limit_carpetas)
                             })];
@@ -932,7 +946,7 @@ function carpetasRoutes(fastify) {
                                         eliminado: false
                                     },
                                     orderBy: (_k = {},
-                                        _k[sort_documentos] = sort_order,
+                                        _k[sort_documentos] = sort_order_1,
                                         _k),
                                     take: parseInt(limit_documentos),
                                     include: {
@@ -946,6 +960,25 @@ function carpetasRoutes(fastify) {
                                             select: {
                                                 id: true,
                                                 nombre_completo: true
+                                            }
+                                        },
+                                        // Incluir todas las versiones del documento
+                                        versiones: {
+                                            select: {
+                                                id: true,
+                                                numero_version: true,
+                                                tamano: true,
+                                                s3_path: true,
+                                                s3_bucket_name: true,
+                                                hash_integridad: true,
+                                                comentario: true,
+                                                fecha_creacion: true,
+                                                usuario_creador: true,
+                                                activa: true,
+                                                metadata: true
+                                            },
+                                            orderBy: {
+                                                numero_version: 'desc'
                                             }
                                         }
                                     }
@@ -975,23 +1008,64 @@ function carpetasRoutes(fastify) {
                                 }); }))];
                         case 15:
                             documentosConTipo = _l.sent();
-                            documentosFormateados = documentos.map(function (doc) { return (__assign(__assign({}, doc), { tamano: doc.tamano ? Number(doc.tamano) : null })); });
+                            documentosFormateados = documentosConTipo.map(function (doc) {
+                                var versionActiva = doc.versiones.find(function (v) { return v.activa; }); // Buscar la versión activa
+                                return {
+                                    id: doc.id,
+                                    nombre_archivo: doc.nombre_archivo,
+                                    extension: doc.extension,
+                                    tamano: (versionActiva === null || versionActiva === void 0 ? void 0 : versionActiva.tamano) ? Number(versionActiva.tamano) : null,
+                                    tipo_mime: doc.tipo_mime,
+                                    fecha_creacion: doc.fecha_creacion,
+                                    descripcion: doc.descripcion,
+                                    categoria: doc.categoria,
+                                    estado: doc.estado,
+                                    version: (versionActiva === null || versionActiva === void 0 ? void 0 : versionActiva.numero_version) ? String(versionActiva.numero_version) : null,
+                                    etiquetas: doc.etiquetas,
+                                    usuario_creador: doc.usuario_creador,
+                                    subido_por: doc.subido_por,
+                                    tipo_documento_id: doc.tipo_documento_id,
+                                    tipo_documento: doc.tipo_documento,
+                                    // Incluir todas las versiones formateadas
+                                    versiones: doc.versiones.map(function (v) { return ({
+                                        id: v.id,
+                                        numero_version: v.numero_version,
+                                        s3_path: v.s3_path,
+                                        s3_bucket_name: v.s3_bucket_name,
+                                        tamano: v.tamano ? Number(v.tamano) : null,
+                                        hash_integridad: v.hash_integridad,
+                                        comentario: v.comentario,
+                                        fecha_creacion: v.fecha_creacion,
+                                        usuario_creador: v.usuario_creador,
+                                        activa: v.activa,
+                                        metadata: v.metadata
+                                    }); })
+                                };
+                            });
+                            // Aplicar ordenamiento client-side si es necesario (para campos que no están en la consulta principal)
+                            if (sort_documentos === 'tamano') {
+                                documentosFormateados.sort(function (a, b) {
+                                    var tamanoA = a.tamano || 0;
+                                    var tamanoB = b.tamano || 0;
+                                    return sort_order_1 === 'asc' ? tamanoA - tamanoB : tamanoB - tamanoA;
+                                });
+                            }
                             response.contenido.documentos = documentosFormateados;
                             return [4 /*yield*/, calcularTotalDocumentosRecursivo(parseInt(id))];
                         case 16:
                             totalDocumentos = _l.sent();
                             response.estadisticas.total_documentos = totalDocumentos;
-                            // Calcular estadísticas de documentos
-                            if (documentos.length > 0) {
-                                tamanoTotal = documentos.reduce(function (sum, doc) {
-                                    return sum + (doc.tamano ? Number(doc.tamano) : 0);
+                            // Calcular estadísticas de documentos usando datos de las versiones activas
+                            if (documentosFormateados.length > 0) {
+                                tamanoTotal = documentosFormateados.reduce(function (sum, doc) {
+                                    return sum + (doc.tamano || 0);
                                 }, 0);
-                                tiposUnicos = Array.from(new Set(documentos
+                                tiposUnicos = Array.from(new Set(documentosFormateados
                                     .map(function (doc) { return doc.extension; })
                                     .filter(function (ext) { return ext; })));
-                                fechaUltima = documentos.reduce(function (latest, doc) {
-                                    return doc.fecha_ultima_actualizacion > latest ? doc.fecha_ultima_actualizacion : latest;
-                                }, documentos[0].fecha_ultima_actualizacion);
+                                fechaUltima = documentosFormateados.reduce(function (latest, doc) {
+                                    return doc.fecha_creacion > latest ? doc.fecha_creacion : latest;
+                                }, documentosFormateados[0].fecha_creacion);
                                 response.estadisticas.tamano_total_mb = Math.round(tamanoTotal / (1024 * 1024) * 100) / 100; // Convertir a MB
                                 response.estadisticas.tipos_archivo_unicos = tiposUnicos;
                                 response.estadisticas.fecha_ultima_actualizacion = fechaUltima;
@@ -1160,7 +1234,7 @@ function carpetasRoutes(fastify) {
                             // Actualizar las rutas S3 de todas las subcarpetas recursivamente
                             _b.sent();
                             // Actualizar las rutas S3 de todos los documentos en esta carpeta
-                            return [4 /*yield*/, prisma_1.prisma.$executeRaw(templateObject_1 || (templateObject_1 = __makeTemplateObject(["\n          UPDATE documentos \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE carpeta_id = ", "\n        "], ["\n          UPDATE documentos \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE carpeta_id = ", "\n        "])), carpeta.s3_path, nuevaRutaS3, parseInt(id))];
+                            return [4 /*yield*/, prisma_1.prisma.$executeRaw(templateObject_1 || (templateObject_1 = __makeTemplateObject(["\n          UPDATE documento_versiones \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE documento_id IN (\n            SELECT id FROM documentos WHERE carpeta_id = ", "\n          )\n        "], ["\n          UPDATE documento_versiones \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE documento_id IN (\n            SELECT id FROM documentos WHERE carpeta_id = ", "\n          )\n        "])), carpeta.s3_path, nuevaRutaS3, parseInt(id))];
                         case 14:
                             // Actualizar las rutas S3 de todos los documentos en esta carpeta
                             _b.sent();
@@ -1335,7 +1409,7 @@ function carpetasRoutes(fastify) {
                             // Actualizar las rutas S3 de todas las subcarpetas recursivamente
                             _b.sent();
                             // Actualizar las rutas S3 de todos los documentos en esta carpeta
-                            return [4 /*yield*/, prisma_1.prisma.$executeRaw(templateObject_2 || (templateObject_2 = __makeTemplateObject(["\n          UPDATE documentos \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE carpeta_id = ", "\n        "], ["\n          UPDATE documentos \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE carpeta_id = ", "\n        "])), carpeta.s3_path, nuevaRutaS3, parseInt(id))];
+                            return [4 /*yield*/, prisma_1.prisma.$executeRaw(templateObject_2 || (templateObject_2 = __makeTemplateObject(["\n          UPDATE documento_versiones \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE documento_id IN (\n            SELECT id FROM documentos WHERE carpeta_id = ", "\n          )\n        "], ["\n          UPDATE documento_versiones \n          SET s3_path = REPLACE(s3_path, ", ", ", ")\n          WHERE documento_id IN (\n            SELECT id FROM documentos WHERE carpeta_id = ", "\n          )\n        "])), carpeta.s3_path, nuevaRutaS3, parseInt(id))];
                         case 14:
                             // Actualizar las rutas S3 de todos los documentos en esta carpeta
                             _b.sent();
@@ -1385,10 +1459,10 @@ function actualizarRutasSubcarpetas(carpetaId, rutaAntigua, rutaNueva) {
                 case 3:
                     // Actualizar la subcarpeta
                     _a.sent();
-                    // Actualizar documentos en esta subcarpeta
-                    return [4 /*yield*/, prisma_1.prisma.$executeRaw(templateObject_3 || (templateObject_3 = __makeTemplateObject(["\n        UPDATE documentos \n        SET s3_path = REPLACE(s3_path, ", ", ", ")\n        WHERE carpeta_id = ", "\n      "], ["\n        UPDATE documentos \n        SET s3_path = REPLACE(s3_path, ", ", ", ")\n        WHERE carpeta_id = ", "\n      "])), subcarpeta.s3_path, nuevaRutaSubcarpeta, subcarpeta.id)];
+                    // Actualizar documentos en esta subcarpeta - ahora usando documento_versiones
+                    return [4 /*yield*/, prisma_1.prisma.$executeRaw(templateObject_3 || (templateObject_3 = __makeTemplateObject(["\n        UPDATE documento_versiones \n        SET s3_path = REPLACE(s3_path, ", ", ", ")\n        WHERE documento_id IN (\n          SELECT id FROM documentos WHERE carpeta_id = ", "\n        )\n      "], ["\n        UPDATE documento_versiones \n        SET s3_path = REPLACE(s3_path, ", ", ", ")\n        WHERE documento_id IN (\n          SELECT id FROM documentos WHERE carpeta_id = ", "\n        )\n      "])), subcarpeta.s3_path, nuevaRutaSubcarpeta, subcarpeta.id)];
                 case 4:
-                    // Actualizar documentos en esta subcarpeta
+                    // Actualizar documentos en esta subcarpeta - ahora usando documento_versiones
                     _a.sent();
                     // Recursivamente actualizar subcarpetas de esta subcarpeta
                     return [4 /*yield*/, actualizarRutasSubcarpetas(subcarpeta.id, subcarpeta.s3_path, nuevaRutaSubcarpeta)];

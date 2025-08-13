@@ -24,36 +24,46 @@ export async function documentosRoutes(app: FastifyInstance) {
         schema: {
           tags: ['Documentos'],
           summary: 'Subir un documento a una carpeta',
-          description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos. El proyecto_id se obtiene automáticamente de la carpeta especificada. El tipo_documento_id es obligatorio.',
+          description: 'Sube un archivo a MinIO y crea un registro de documento en la base de datos con su primera versión. El proyecto_id se obtiene automáticamente de la carpeta especificada. El tipo_documento_id es obligatorio. Si se envía el parámetro reemplazar=true, se omite la validación de documento duplicado.',
           consumes: ['multipart/form-data'],
           response: {
             200: z.object({
               success: z.boolean(),
               message: z.string(),
-                 documento: z.object({
-                 id: z.string(),
-                 nombre_archivo: z.string(),
-                 extension: z.string().nullable().optional(),
-                 tamano: z.number().optional(),
-                 tipo_mime: z.string().nullable().optional(),
-                 descripcion: z.string().nullable().optional(),
-                 categoria: z.string().nullable().optional(),
-                 estado: z.string().nullable().optional(),
-                 version: z.string().nullable().optional(),
-                 carpeta_id: z.number(),
-                 s3_path: z.string().nullable().optional(),
-                 s3_bucket_name: z.string().nullable().optional(),
-                 s3_created: z.boolean().optional(),
-                 hash_integridad: z.string().nullable().optional(),
-                 etiquetas: z.array(z.string()),
-                 proyecto_id: z.number().nullable().optional(),
-                 subido_por: z.number(),
-                 fecha_creacion: z.date(),
-                 fecha_ultima_actualizacion: z.date(),
-               }),
+              documento: z.object({
+                id: z.string(),
+                nombre_archivo: z.string(),
+                extension: z.string().nullable().optional(),
+                tipo_mime: z.string().nullable().optional(),
+                descripcion: z.string().nullable().optional(),
+                categoria: z.string().nullable().optional(),
+                estado: z.string().nullable().optional(),
+                carpeta_id: z.number(),
+                etiquetas: z.array(z.string()),
+                proyecto_id: z.number().nullable().optional(),
+                subido_por: z.number(),
+                usuario_creador: z.number(),
+                fecha_creacion: z.date(),
+                fecha_ultima_actualizacion: z.date(),
+                version_actual: z.object({
+                  id: z.number(),
+                  numero_version: z.number(),
+                  s3_path: z.string(),
+                  s3_bucket_name: z.string().nullable().optional(),
+                  tamano: z.number().nullable().optional(),
+                  hash_integridad: z.string().nullable().optional(),
+                  comentario: z.string().nullable().optional(),
+                  fecha_creacion: z.date(),
+                  activa: z.boolean(),
+                }),
+              }),
             }),
             400: z.object({
-              error: z.string(),
+              success: z.boolean(),
+              error: z.object({
+                code: z.string(),
+                message: z.string(),
+              }),
             }),
             401: z.object({
               error: z.string(),
@@ -79,7 +89,8 @@ export async function documentosRoutes(app: FastifyInstance) {
           const descripcion = (data.fields['descripcion'] as any)?.value as string;
           const categoria = (data.fields['categoria'] as any)?.value as string;
           const etiquetas = (data.fields['etiquetas'] as any)?.value ? JSON.parse((data.fields['etiquetas'] as any).value as string) : [];
-          const archivoRelacionado = (data.fields['archivo_relacionado'] as any)?.value as string;
+          const comentario = (data.fields['comentario'] as any)?.value as string;
+          const reemplazar = (data.fields['reemplazar'] as any)?.value === '1';
 
           // Validate required fields
           if (!tipoDocumentoId || isNaN(tipoDocumentoId)) {
@@ -87,6 +98,42 @@ export async function documentosRoutes(app: FastifyInstance) {
           }
 
           console.log('carpetaId', data.fields['carpeta_id']['value']);
+
+          // Check if document already exists in the folder
+          const existingDocument = await prisma.documentos.findFirst({
+            where: {
+              nombre_archivo: data.filename,
+              carpeta_id: carpetaId,
+              eliminado: false,
+            },
+          });
+
+          if (existingDocument && !reemplazar) {
+            return reply.status(400).send({
+              success: false,
+              error: {
+                code: 'DOCUMENT_ALREADY_EXISTS',
+                message: 'El documento ya existe en esta carpeta'
+              }
+            });
+          }
+
+          // If replacing, get the highest version number
+          let nextVersionNumber = 1;
+          if (existingDocument && reemplazar) {
+            const highestVersion = await (prisma as any).documento_versiones.findFirst({
+              where: {
+                documento_id: existingDocument.id,
+              },
+              orderBy: {
+                numero_version: 'desc',
+              },
+            });
+            
+            if (highestVersion) {
+              nextVersionNumber = highestVersion.numero_version + 1;
+            }
+          }
 
           // Validate carpeta exists and get its S3 path and proyecto_id
           const carpeta = await (prisma as any).carpetas.findFirst({
@@ -123,74 +170,144 @@ export async function documentosRoutes(app: FastifyInstance) {
           const hashIntegridad = createHash('sha256').update(fileBuffer).digest('hex');
 
           // Generate storage path using the folder's S3 path
-          //const timestamp = Date.now();
-          //const sanitizedFilename = data.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-          //const s3Path = `${carpeta.s3_path}/${timestamp}_${sanitizedFilename}`;
-          const s3Path = `${carpeta.s3_path}/${data.filename}`;
+          const s3Path = `${carpeta.s3_path}/version_${nextVersionNumber}_${data.filename}`;
 
           // Upload file to MinIO
           await minioClient.putObject(BUCKET_NAME, s3Path, fileBuffer);
 
-          // Create document record in database
-          const documento = await prisma.documentos.create({
-            data: {
-              nombre_archivo: data.filename,
-              extension: data.filename.split('.').pop() || null,
-              tamano: BigInt(fileBuffer.length),
-              tipo_mime: data.mimetype,
-              descripcion: descripcion || null,
-              categoria: categoria || null,
-              estado: 'activo',
-              version: '1.0',
-              archivo_relacionado: archivoRelacionado || null,
-              carpeta_id: carpetaId,
-              tipo_documento_id: tipoDocumentoId,
-              s3_path: s3Path,
-              s3_bucket_name: BUCKET_NAME,
-              s3_created: true,
-              hash_integridad: hashIntegridad,
-              etiquetas: etiquetas,
-              proyecto_id: carpeta.proyecto?.id || null,
-              subido_por: userId,
-              usuario_creador: userId,
-            } as any,
-          });
+          let documento;
+          let version;
+
+          if (existingDocument && reemplazar) {
+            // Update existing document
+            documento = await prisma.documentos.update({
+              where: { id: existingDocument.id },
+              data: {
+                extension: data.filename.split('.').pop() || null,
+                tipo_mime: data.mimetype,
+                descripcion: descripcion || null,
+                categoria: categoria || null,
+                fecha_ultima_actualizacion: new Date(),
+              },
+            });
+
+            // Deactivate all previous versions
+            await (prisma as any).documento_versiones.updateMany({
+              where: {
+                documento_id: existingDocument.id,
+                activa: true,
+              },
+              data: {
+                activa: false,
+              },
+            });
+
+            // Create new version record
+            version = await (prisma as any).documento_versiones.create({
+              data: {
+                documento_id: existingDocument.id,
+                numero_version: nextVersionNumber,
+                s3_path: s3Path,
+                s3_bucket_name: BUCKET_NAME,
+                tamano: BigInt(fileBuffer.length),
+                hash_integridad: hashIntegridad,
+                comentario: comentario || null,
+                usuario_creador: userId,
+                metadata: {
+                  original_filename: data.filename,
+                  mime_type: data.mimetype,
+                  upload_timestamp: new Date().toISOString(),
+                  replaced_previous_version: true,
+                },
+                activa: true,
+              },
+            });
+          } else {
+            // Create new document record
+            documento = await prisma.documentos.create({
+              data: {
+                nombre_archivo: data.filename,
+                extension: data.filename.split('.').pop() || null,
+                tipo_mime: data.mimetype,
+                descripcion: descripcion || null,
+                categoria: categoria || null,
+                estado: 'activo',
+                carpeta_id: carpetaId,
+                tipo_documento_id: tipoDocumentoId,
+                etiquetas: etiquetas,
+                proyecto_id: carpeta.proyecto?.id || null,
+                subido_por: userId,
+                usuario_creador: userId,
+              },
+            });
+
+            // Create first version record
+            version = await (prisma as any).documento_versiones.create({
+              data: {
+                documento_id: documento.id,
+                numero_version: 1,
+                s3_path: s3Path,
+                s3_bucket_name: BUCKET_NAME,
+                tamano: BigInt(fileBuffer.length),
+                hash_integridad: hashIntegridad,
+                comentario: comentario || null,
+                usuario_creador: userId,
+                metadata: {
+                  original_filename: data.filename,
+                  mime_type: data.mimetype,
+                  upload_timestamp: new Date().toISOString(),
+                },
+                activa: true,
+              },
+            });
+          }
 
           // Create audit record
           await prisma.archivo_historial.create({
             data: {
               archivo_id: documento.id,
               usuario_id: userId,
-              accion: 'upload',
-              descripcion: 'File uploaded',
-              version_nueva: '1.0',
+              accion: existingDocument && reemplazar ? 'replace' : 'upload',
+              descripcion: existingDocument && reemplazar 
+                ? `File replaced - new version ${nextVersionNumber} created` 
+                : 'File uploaded - first version created',
+              version_anterior: existingDocument && reemplazar ? String(nextVersionNumber - 1) : null,
+              version_nueva: String(version.numero_version),
             },
           });
 
           return reply.send({
             success: true,
-            message: 'Document uploaded successfully',
-                         documento: {
-               id: documento.id,
-               nombre_archivo: documento.nombre_archivo,
-               extension: documento.extension,
-               tamano: Number(documento.tamano),
-               tipo_mime: documento.tipo_mime,
-               descripcion: documento.descripcion,
-               categoria: documento.categoria,
-               estado: documento.estado,
-               version: documento.version,
-               carpeta_id: documento.carpeta_id,
-                             s3_path: (documento as any).s3_path,
-              s3_bucket_name: (documento as any).s3_bucket_name,
-              s3_created: (documento as any).s3_created,
-              hash_integridad: documento.hash_integridad,
-               etiquetas: documento.etiquetas,
-               proyecto_id: documento.proyecto_id,
-               subido_por: documento.subido_por,
-               fecha_creacion: documento.fecha_creacion,
-               fecha_ultima_actualizacion: documento.fecha_ultima_actualizacion,
-             },
+            message: existingDocument && reemplazar 
+              ? `Document replaced successfully with version ${nextVersionNumber}` 
+              : 'Document uploaded successfully',
+            documento: {
+              id: documento.id,
+              nombre_archivo: documento.nombre_archivo,
+              extension: documento.extension,
+              tipo_mime: documento.tipo_mime,
+              descripcion: documento.descripcion,
+              categoria: documento.categoria,
+              estado: documento.estado,
+              carpeta_id: documento.carpeta_id,
+              etiquetas: documento.etiquetas,
+              proyecto_id: documento.proyecto_id,
+              subido_por: documento.subido_por,
+              usuario_creador: documento.usuario_creador,
+              fecha_creacion: documento.fecha_creacion,
+              fecha_ultima_actualizacion: documento.fecha_ultima_actualizacion,
+              version_actual: {
+                id: version.id,
+                numero_version: version.numero_version,
+                s3_path: version.s3_path,
+                s3_bucket_name: version.s3_bucket_name,
+                tamano: Number(version.tamano),
+                hash_integridad: version.hash_integridad,
+                comentario: version.comentario,
+                fecha_creacion: version.fecha_creacion,
+                activa: version.activa,
+              },
+            },
           });
 
         } catch (error) {
@@ -225,20 +342,15 @@ export async function documentosRoutes(app: FastifyInstance) {
                 id: z.string(),
                 nombre_archivo: z.string(),
                 extension: z.string().nullable().optional(),
-                tamano: z.number().optional(),
                 tipo_mime: z.string().nullable().optional(),
                 descripcion: z.string().nullable().optional(),
                 categoria: z.string().nullable().optional(),
                 estado: z.string().nullable().optional(),
-                version: z.string().nullable().optional(),
                 carpeta_id: z.number(),
-                s3_path: z.string().nullable().optional(),
-                s3_bucket_name: z.string().nullable().optional(),
-                                 s3_created: z.boolean().optional(),
-                 hash_integridad: z.string().nullable().optional(),
                 etiquetas: z.array(z.string()),
                 proyecto_id: z.number().nullable().optional(),
                 subido_por: z.number(),
+                usuario_creador: z.number(),
                 fecha_creacion: z.date(),
                 fecha_ultima_actualizacion: z.date(),
                 creador: z.object({
@@ -246,6 +358,17 @@ export async function documentosRoutes(app: FastifyInstance) {
                   nombre_completo: z.string().nullable().optional(),
                   correo_electronico: z.string().nullable().optional(),
                 }),
+                version_actual: z.object({
+                  id: z.number(),
+                  numero_version: z.number(),
+                  s3_path: z.string(),
+                  s3_bucket_name: z.string().nullable().optional(),
+                  tamano: z.number().nullable().optional(),
+                  hash_integridad: z.string().nullable().optional(),
+                  comentario: z.string().nullable().optional(),
+                  fecha_creacion: z.date(),
+                  activa: z.boolean(),
+                }).nullable().optional(),
               })),
             }),
             400: z.object({
@@ -275,7 +398,7 @@ export async function documentosRoutes(app: FastifyInstance) {
             throw new BadRequestError('Folder not found');
           }
 
-          // Get documents in the folder (excluding deleted ones)
+          // Get documents in the folder (excluding deleted ones) with their current version
           const documentos = await (prisma as any).documentos.findMany({
             where: {
               carpeta_id: carpetaId,
@@ -289,6 +412,15 @@ export async function documentosRoutes(app: FastifyInstance) {
                   correo_electronico: true,
                 },
               },
+              versiones: {
+                where: {
+                  activa: true,
+                },
+                orderBy: {
+                  fecha_creacion: 'desc',
+                },
+                take: 1,
+              },
             },
             orderBy: {
               fecha_creacion: 'desc',
@@ -301,23 +433,29 @@ export async function documentosRoutes(app: FastifyInstance) {
               id: doc.id,
               nombre_archivo: doc.nombre_archivo,
               extension: doc.extension,
-              tamano: doc.tamano ? Number(doc.tamano) : null,
               tipo_mime: doc.tipo_mime,
               descripcion: doc.descripcion,
               categoria: doc.categoria,
               estado: doc.estado,
-              version: doc.version,
               carpeta_id: doc.carpeta_id,
-              s3_path: (doc as any).s3_path,
-              s3_bucket_name: (doc as any).s3_bucket_name,
-              s3_created: (doc as any).s3_created,
-              hash_integridad: doc.hash_integridad,
               etiquetas: doc.etiquetas,
               proyecto_id: doc.proyecto_id,
               subido_por: doc.subido_por,
+              usuario_creador: doc.usuario_creador,
               fecha_creacion: doc.fecha_creacion,
               fecha_ultima_actualizacion: doc.fecha_ultima_actualizacion,
               creador: doc.creador,
+              version_actual: doc.versiones && doc.versiones.length > 0 ? {
+                id: doc.versiones[0].id,
+                numero_version: doc.versiones[0].numero_version,
+                s3_path: doc.versiones[0].s3_path,
+                s3_bucket_name: doc.versiones[0].s3_bucket_name,
+                tamano: doc.versiones[0].tamano ? Number(doc.versiones[0].tamano) : null,
+                hash_integridad: doc.versiones[0].hash_integridad,
+                comentario: doc.versiones[0].comentario,
+                fecha_creacion: doc.versiones[0].fecha_creacion,
+                activa: doc.versiones[0].activa,
+              } : null,
             })),
           });
 
@@ -383,6 +521,14 @@ export async function documentosRoutes(app: FastifyInstance) {
             throw new BadRequestError('Document is already deleted');
           }
 
+          // Get the current active version to delete from MinIO
+          const currentVersion = await (prisma as any).documento_versiones.findFirst({
+            where: {
+              documento_id: documentoId,
+              activa: true,
+            },
+          });
+
           // Create audit record first (before deleting the document)
           await (prisma as any).archivo_historial.create({
             data: {
@@ -390,15 +536,15 @@ export async function documentosRoutes(app: FastifyInstance) {
               usuario_id: 1, // Default user ID - should be passed as parameter
               accion: 'soft_delete',
               descripcion: 'Document marked as deleted (soft delete in DB, hard delete in MinIO)',
-              version_anterior: documento.version,
+              version_anterior: currentVersion?.numero_version ? String(currentVersion.numero_version) : 'unknown',
             },
           });
 
-          // Delete from MinIO first
-          if ((documento as any).s3_path) {
+          // Delete from MinIO first if there's a current version
+          if (currentVersion?.s3_path) {
             try {
-              await minioClient.removeObject(BUCKET_NAME, (documento as any).s3_path);
-              console.log(`File deleted from MinIO: ${(documento as any).s3_path}`);
+              await minioClient.removeObject(BUCKET_NAME, currentVersion.s3_path);
+              console.log(`File deleted from MinIO: ${currentVersion.s3_path}`);
             } catch (error) {
               console.error('Error deleting from MinIO:', error);
               // Continue with soft delete even if MinIO deletion fails
@@ -480,15 +626,23 @@ export async function documentosRoutes(app: FastifyInstance) {
             throw new BadRequestError('Document not found or has been deleted');
           }
 
-          // Check if document has S3 path
-          if (!(documento as any).s3_path) {
+          // Get the current active version to download
+          const currentVersion = await (prisma as any).documento_versiones.findFirst({
+            where: {
+              documento_id: documentoId,
+              activa: true,
+            },
+          });
+
+          // Check if document has a current version with S3 path
+          if (!currentVersion?.s3_path) {
             throw new BadRequestError('Document not found in storage');
           }
 
           // Generate presigned URL for download
           const presignedUrl = await minioClient.presignedGetObject(
             BUCKET_NAME,
-            (documento as any).s3_path,
+            currentVersion.s3_path,
             24 * 60 * 60 // 24 hours expiration
           );
 
@@ -527,20 +681,15 @@ export async function documentosRoutes(app: FastifyInstance) {
                 id: z.string(),
                 nombre_archivo: z.string(),
                 extension: z.string().nullable(),
-                tamano: z.number().nullable(),
                 tipo_mime: z.string().nullable(),
                 descripcion: z.string().nullable(),
                 categoria: z.string().nullable(),
                 estado: z.string().nullable(),
-                version: z.string().nullable(),
                 carpeta_id: z.number(),
-                s3_path: z.string().nullable(),
-                s3_bucket_name: z.string().nullable(),
-                s3_created: z.boolean().nullable(),
-                hash_integridad: z.string().nullable(),
                 etiquetas: z.array(z.string()),
                 proyecto_id: z.number().nullable(),
                 subido_por: z.number(),
+                usuario_creador: z.number(),
                 fecha_creacion: z.date(),
                 fecha_ultima_actualizacion: z.date(),
                 creador: z.object({
@@ -586,20 +735,15 @@ export async function documentosRoutes(app: FastifyInstance) {
               id: doc.id,
               nombre_archivo: doc.nombre_archivo,
               extension: doc.extension,
-              tamano: doc.tamano ? Number(doc.tamano) : null,
               tipo_mime: doc.tipo_mime,
               descripcion: doc.descripcion,
               categoria: doc.categoria,
               estado: doc.estado,
-              version: doc.version,
               carpeta_id: doc.carpeta_id,
-              s3_path: (doc as any).s3_path,
-              s3_bucket_name: (doc as any).s3_bucket_name,
-              s3_created: (doc as any).s3_created,
-              hash_integridad: doc.hash_integridad,
               etiquetas: doc.etiquetas,
               proyecto_id: doc.proyecto_id,
               subido_por: doc.subido_por,
+              usuario_creador: doc.usuario_creador,
               fecha_creacion: doc.fecha_creacion,
               fecha_ultima_actualizacion: doc.fecha_ultima_actualizacion,
               creador: doc.creador,
@@ -658,12 +802,20 @@ export async function documentosRoutes(app: FastifyInstance) {
             throw new BadRequestError('Document not found or has been deleted');
           }
 
-          // Check if document has S3 path
-          if (!(documento as any).s3_path) {
+          // Get the current active version to download
+          const currentVersion = await (prisma as any).documento_versiones.findFirst({
+            where: {
+              documento_id: documentoId,
+              activa: true,
+            },
+          });
+
+          // Check if document has a current version with S3 path
+          if (!currentVersion?.s3_path) {
             throw new BadRequestError('Document not found in storage');
           }
 
-          const path = (documento as any).s3_path;
+          const path = currentVersion.s3_path;
           const fileName = filename || documento.nombre_archivo || path.split('/').pop() || 'file';
 
           // Get file stats first
@@ -816,12 +968,20 @@ export async function documentosRoutes(app: FastifyInstance) {
             throw new BadRequestError('Document not found or has been deleted');
           }
 
-          // Check if document has S3 path
-          if (!(documento as any).s3_path) {
+          // Get the current active version to get S3 path
+          const currentVersion = await (prisma as any).documento_versiones.findFirst({
+            where: {
+              documento_id: documentoId,
+              activa: true,
+            },
+          });
+
+          // Check if document has a current version with S3 path
+          if (!currentVersion?.s3_path) {
             throw new BadRequestError('Document not found in storage');
           }
 
-          const path = (documento as any).s3_path;
+          const path = currentVersion.s3_path;
           const fileName = documento.nombre_archivo || path.split('/').pop() || 'file';
 
           // Get file stats
@@ -887,13 +1047,14 @@ export async function documentosRoutes(app: FastifyInstance) {
         schema: {
           tags: ['Documentos'],
           summary: 'Descargar documento como string base64',
-          description: 'Descarga un documento como string codificado en base64, útil para archivos pequeños o incrustar en respuestas JSON',
+          description: 'Descarga un documento como string codificado en base64, útil para archivos pequeños o incrustar en respuestas JSON. Permite especificar una versión específica del documento o usar la versión activa por defecto.',
           params: z.object({
             documentoId: z.string().uuid(),
           }),
-          querystring: z.object({
-            maxSize: z.number().optional().default(10 * 1024 * 1024) // 10MB default max
-          }),
+                  querystring: z.object({
+          maxSize: z.coerce.number().optional().default(10 * 1024 * 1024), // 10MB default max
+          version: z.coerce.number().optional() // Optional version number to download specific version
+        }),
           response: {
             200: z.object({
               success: z.boolean(),
@@ -925,9 +1086,15 @@ export async function documentosRoutes(app: FastifyInstance) {
       async (request, reply) => {
         try {
           const { documentoId } = request.params;
-          const { maxSize = 10 * 1024 * 1024 } = request.query as { 
-            maxSize?: number 
+          let { maxSize = 10 * 1024 * 1024, version } = request.query as { 
+            maxSize?: number,
+            version?: number
           };
+
+          // Set default version to 0 if not provided
+          if (version === undefined) {
+            version = 0;
+          }
 
           // Get document (excluding deleted ones for download)
           const documento = await (prisma as any).documentos.findFirst({
@@ -941,12 +1108,36 @@ export async function documentosRoutes(app: FastifyInstance) {
             throw new BadRequestError('Document not found or has been deleted');
           }
 
-          // Check if document has S3 path
-          if (!(documento as any).s3_path) {
+          // Get the specific version or current active version to get S3 path
+          let targetVersion;
+          if (version !== 0) {
+            // Look for specific version number provided in query parameter
+            targetVersion = await (prisma as any).documento_versiones.findFirst({
+              where: {
+                documento_id: documentoId,
+                numero_version: version,
+              },
+            });
+            
+            if (!targetVersion) {
+              throw new BadRequestError(`Version ${version} not found for this document`);
+            }
+          } else {
+            // If no version specified, get the current active version (default behavior)
+            targetVersion = await (prisma as any).documento_versiones.findFirst({
+              where: {
+                documento_id: documentoId,
+                activa: true,
+              },
+            });
+          }
+
+          // Check if document has a target version with S3 path
+          if (!targetVersion?.s3_path) {
             throw new BadRequestError('Document not found in storage');
           }
 
-          const path = (documento as any).s3_path;
+          const path = targetVersion.s3_path;
           const fileName = documento.nombre_archivo || path.split('/').pop() || 'file';
 
           // Get extension from documentos table
@@ -1092,24 +1283,16 @@ export async function documentosRoutes(app: FastifyInstance) {
                 id: z.string(),
                 nombre_archivo: z.string(),
                 extension: z.string().nullable(),
-                tamano: z.number().nullable(),
                 tipo_mime: z.string().nullable(),
                 descripcion: z.string().nullable(),
                 categoria: z.string().nullable(),
                 estado: z.string().nullable(),
-                version: z.string().nullable(),
-                archivo_relacionado: z.string().nullable(),
                 carpeta_id: z.number(),
                 tipo_documento_id: z.number().nullable(),
-                s3_path: z.string().nullable(),
-                s3_bucket_name: z.string().nullable(),
-                s3_created: z.boolean(),
-                hash_integridad: z.string().nullable(),
                 etiquetas: z.array(z.string()),
                 proyecto_id: z.number().nullable(),
                 usuario_creador: z.number(),
                 subido_por: z.number(),
-                metadata: z.any().nullable(),
                 eliminado: z.boolean(),
                 fecha_creacion: z.date(),
                 fecha_ultima_actualizacion: z.date(),
@@ -1143,18 +1326,30 @@ export async function documentosRoutes(app: FastifyInstance) {
                   requiere_numerar: z.boolean(),
                   requiere_tramitar: z.boolean(),
                 }).nullable(),
-                documento_relacionado: z.object({
-                  id: z.string(),
-                  nombre_archivo: z.string(),
-                  extension: z.string().nullable(),
-                  descripcion: z.string().nullable(),
-                }).nullable(),
-                documentos_relacionados: z.array(z.object({
-                  id: z.string(),
-                  nombre_archivo: z.string(),
-                  extension: z.string().nullable(),
-                  descripcion: z.string().nullable(),
-                }))
+                version_actual: z.object({
+                  id: z.number(),
+                  numero_version: z.number(),
+                  s3_path: z.string(),
+                  s3_bucket_name: z.string().nullable().optional(),
+                  tamano: z.number().nullable().optional(),
+                  hash_integridad: z.string().nullable().optional(),
+                  comentario: z.string().nullable().optional(),
+                  fecha_creacion: z.date(),
+                  activa: z.boolean(),
+                  metadata: z.any().nullable().optional(),
+                }).nullable().optional(),
+                versiones: z.array(z.object({
+                  id: z.number(),
+                  numero_version: z.number(),
+                  s3_path: z.string(),
+                  s3_bucket_name: z.string().nullable().optional(),
+                  tamano: z.number().nullable().optional(),
+                  hash_integridad: z.string().nullable().optional(),
+                  comentario: z.string().nullable().optional(),
+                  fecha_creacion: z.date(),
+                  activa: z.boolean(),
+                  metadata: z.any().nullable().optional(),
+                })),
               }),
             }),
             400: z.object({
@@ -1173,7 +1368,7 @@ export async function documentosRoutes(app: FastifyInstance) {
         try {
           const { documentoId } = request.params;
 
-          // Get document with all related information
+          // Get document with all related information and current version
           const documento = await (prisma as any).documentos.findFirst({
             where: {
               id: documentoId,
@@ -1218,22 +1413,11 @@ export async function documentosRoutes(app: FastifyInstance) {
                   requiere_tramitar: true,
                 },
               },
-              documento_relacionado: {
-                select: {
-                  id: true,
-                  nombre_archivo: true,
-                  extension: true,
-                  descripcion: true,
+              versiones: {
+                orderBy: {
+                  numero_version: 'desc',
                 },
               },
-              documentos_relacionados: {
-                select: {
-                  id: true,
-                  nombre_archivo: true,
-                  extension: true,
-                  descripcion: true,
-                },
-              }
             },
           });
 
@@ -1247,24 +1431,16 @@ export async function documentosRoutes(app: FastifyInstance) {
               id: documento.id,
               nombre_archivo: documento.nombre_archivo,
               extension: documento.extension,
-              tamano: documento.tamano ? Number(documento.tamano) : null,
               tipo_mime: documento.tipo_mime,
               descripcion: documento.descripcion,
               categoria: documento.categoria,
               estado: documento.estado,
-              version: documento.version,
-              archivo_relacionado: documento.archivo_relacionado,
               carpeta_id: documento.carpeta_id,
               tipo_documento_id: documento.tipo_documento_id,
-              s3_path: documento.s3_path,
-              s3_bucket_name: documento.s3_bucket_name,
-              s3_created: documento.s3_created,
-              hash_integridad: documento.hash_integridad,
               etiquetas: documento.etiquetas,
               proyecto_id: documento.proyecto_id,
               usuario_creador: documento.usuario_creador,
               subido_por: documento.subido_por,
-              metadata: documento.metadata,
               eliminado: documento.eliminado,
               fecha_creacion: documento.fecha_creacion,
               fecha_ultima_actualizacion: documento.fecha_ultima_actualizacion,
@@ -1273,8 +1449,30 @@ export async function documentosRoutes(app: FastifyInstance) {
               subio_por: documento.subio_por,
               proyecto: documento.proyecto,
               tipo_documento: documento.tipo_documento,
-              documento_relacionado: documento.documento_relacionado,
-              documentos_relacionados: documento.documentos_relacionados
+              version_actual: documento.versiones && documento.versiones.length > 0 ? {
+                id: documento.versiones[0].id,
+                numero_version: documento.versiones[0].numero_version,
+                s3_path: documento.versiones[0].s3_path,
+                s3_bucket_name: documento.versiones[0].s3_bucket_name,
+                tamano: documento.versiones[0].tamano ? Number(documento.versiones[0].tamano) : null,
+                hash_integridad: documento.versiones[0].hash_integridad,
+                comentario: documento.versiones[0].comentario,
+                fecha_creacion: documento.versiones[0].fecha_creacion,
+                activa: documento.versiones[0].activa,
+                metadata: documento.versiones[0].metadata,
+              } : null,
+              versiones: documento.versiones.map(version => ({
+                id: version.id,
+                numero_version: version.numero_version,
+                s3_path: version.s3_path,
+                s3_bucket_name: version.s3_bucket_name,
+                tamano: version.tamano ? Number(version.tamano) : null,
+                hash_integridad: version.hash_integridad,
+                comentario: version.comentario,
+                fecha_creacion: version.fecha_creacion,
+                activa: version.activa,
+                metadata: version.metadata,
+              })),
             },
           });
 
@@ -1652,11 +1850,8 @@ export async function documentosRoutes(app: FastifyInstance) {
             descripcion: z.string().nullable().optional(),
             categoria: z.string().nullable().optional(),
             estado: z.string().nullable().optional(),
-            version: z.string().nullable().optional(),
-            archivo_relacionado: z.string().nullable().optional(),
             tipo_documento_id: z.number().nullable().optional(),
             etiquetas: z.array(z.string()).optional(),
-            metadata: z.any().optional(),
           }),
           response: {
             200: z.object({
@@ -1666,24 +1861,16 @@ export async function documentosRoutes(app: FastifyInstance) {
                 id: z.string(),
                 nombre_archivo: z.string(),
                 extension: z.string().nullable(),
-                tamano: z.number().nullable(),
                 tipo_mime: z.string().nullable(),
                 descripcion: z.string().nullable(),
                 categoria: z.string().nullable(),
                 estado: z.string().nullable(),
-                version: z.string().nullable(),
-                archivo_relacionado: z.string().nullable(),
                 carpeta_id: z.number(),
                 tipo_documento_id: z.number().nullable(),
-                s3_path: z.string().nullable(),
-                s3_bucket_name: z.string().nullable(),
-                s3_created: z.boolean(),
-                hash_integridad: z.string().nullable(),
                 etiquetas: z.array(z.string()),
                 proyecto_id: z.number().nullable(),
                 usuario_creador: z.number(),
                 subido_por: z.number(),
-                metadata: z.any().nullable(),
                 eliminado: z.boolean(),
                 fecha_creacion: z.date(),
                 fecha_ultima_actualizacion: z.date(),
@@ -1717,18 +1904,6 @@ export async function documentosRoutes(app: FastifyInstance) {
                   requiere_numerar: z.boolean(),
                   requiere_tramitar: z.boolean(),
                 }).nullable(),
-                documento_relacionado: z.object({
-                  id: z.string(),
-                  nombre_archivo: z.string(),
-                  extension: z.string().nullable(),
-                  descripcion: z.string().nullable(),
-                }).nullable(),
-                documentos_relacionados: z.array(z.object({
-                  id: z.string(),
-                  nombre_archivo: z.string(),
-                  extension: z.string().nullable(),
-                  descripcion: z.string().nullable(),
-                }))
               }),
             }),
             400: z.object({
@@ -1774,19 +1949,7 @@ export async function documentosRoutes(app: FastifyInstance) {
             }
           }
 
-          // Validate archivo_relacionado if provided
-          if (updateData.archivo_relacionado !== undefined && updateData.archivo_relacionado !== null) {
-            const documentoRelacionado = await (prisma as any).documentos.findFirst({
-              where: {
-                id: updateData.archivo_relacionado,
-                eliminado: false,
-              },
-            });
 
-            if (!documentoRelacionado) {
-              throw new BadRequestError('Related document not found or has been deleted');
-            }
-          }
 
           // Prepare update data
           const dataToUpdate: any = {
@@ -1840,22 +2003,6 @@ export async function documentosRoutes(app: FastifyInstance) {
                   requiere_tramitar: true,
                 },
               },
-              documento_relacionado: {
-                select: {
-                  id: true,
-                  nombre_archivo: true,
-                  extension: true,
-                  descripcion: true,
-                },
-              },
-              documentos_relacionados: {
-                select: {
-                  id: true,
-                  nombre_archivo: true,
-                  extension: true,
-                  descripcion: true,
-                },
-              }
             },
           });
 
@@ -1866,8 +2013,6 @@ export async function documentosRoutes(app: FastifyInstance) {
               usuario_id: 1, // Default user ID - should be passed as parameter
               accion: 'update',
               descripcion: 'Document properties updated',
-              version_anterior: existingDocumento.version,
-              version_nueva: documentoActualizado.version,
             },
           });
 
@@ -1878,24 +2023,16 @@ export async function documentosRoutes(app: FastifyInstance) {
               id: documentoActualizado.id,
               nombre_archivo: documentoActualizado.nombre_archivo,
               extension: documentoActualizado.extension,
-              tamano: documentoActualizado.tamano ? Number(documentoActualizado.tamano) : null,
               tipo_mime: documentoActualizado.tipo_mime,
               descripcion: documentoActualizado.descripcion,
               categoria: documentoActualizado.categoria,
               estado: documentoActualizado.estado,
-              version: documentoActualizado.version,
-              archivo_relacionado: documentoActualizado.archivo_relacionado,
               carpeta_id: documentoActualizado.carpeta_id,
               tipo_documento_id: documentoActualizado.tipo_documento_id,
-              s3_path: documentoActualizado.s3_path,
-              s3_bucket_name: documentoActualizado.s3_bucket_name,
-              s3_created: documentoActualizado.s3_created,
-              hash_integridad: documentoActualizado.hash_integridad,
               etiquetas: documentoActualizado.etiquetas,
               proyecto_id: documentoActualizado.proyecto_id,
               usuario_creador: documentoActualizado.usuario_creador,
               subido_por: documentoActualizado.subido_por,
-              metadata: documentoActualizado.metadata,
               eliminado: documentoActualizado.eliminado,
               fecha_creacion: documentoActualizado.fecha_creacion,
               fecha_ultima_actualizacion: documentoActualizado.fecha_ultima_actualizacion,
@@ -1904,8 +2041,6 @@ export async function documentosRoutes(app: FastifyInstance) {
               subio_por: documentoActualizado.subio_por,
               proyecto: documentoActualizado.proyecto,
               tipo_documento: documentoActualizado.tipo_documento,
-              documento_relacionado: documentoActualizado.documento_relacionado,
-              documentos_relacionados: documentoActualizado.documentos_relacionados
             },
           });
 

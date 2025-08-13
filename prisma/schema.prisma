@@ -44,6 +44,7 @@ model usuarios {
   etapas_creadas             etapas_registro[]    @relation("UsuarioCreadorEtapa")
   inspector_fiscal_asignado  inspector_fiscal[]
   proyectos_creados          proyectos[]          @relation("UsuarioCreador")
+  versiones_creadas          documento_versiones[] @relation("UsuarioCreadorVersion")
   departamento               departamentos?       @relation(fields: [departamento_id], references: [id])
   division                   divisiones?          @relation(fields: [division_id], references: [id])
   perfil                     perfiles             @relation(fields: [perfil_id], references: [id])
@@ -426,37 +427,50 @@ model documentos {
   id                         String                @id @default(uuid()) @db.Uuid
   nombre_archivo             String                @db.VarChar(255)
   extension                  String?               @db.VarChar(10)
-  tamano                     BigInt?
   tipo_mime                  String?               @db.VarChar(100)
   fecha_creacion             DateTime              @default(now())
   usuario_creador            Int
   descripcion                String?
   categoria                  String?               @db.VarChar(100)
   estado                     String?               @db.VarChar(30)
-  version                    String?               @db.VarChar(10)
-  archivo_relacionado        String?               @db.Uuid
   carpeta_id                 Int
-  hash_integridad            String?               @db.VarChar(255)
   etiquetas                  String[]
   fecha_ultima_actualizacion DateTime              @default(now()) @updatedAt
   proyecto_id                Int?
   subido_por                 Int
-  metadata                   Json?
-  s3_bucket_name             String?               @db.VarChar(100)
-  s3_created                 Boolean               @default(false)
-  s3_path                    String?               @db.VarChar(500)
   eliminado                  Boolean               @default(false)
   tipo_documento_id          Int?
   alertas                    alertas[]
   archivo_historial          archivo_historial[]
-  documento_relacionado      documentos?           @relation("DocumentosRelacionados", fields: [archivo_relacionado], references: [id])
-  documentos_relacionados    documentos[]          @relation("DocumentosRelacionados")
   carpeta                    carpetas              @relation(fields: [carpeta_id], references: [id])
   proyecto                   proyectos?            @relation(fields: [proyecto_id], references: [id])
   subio_por                  usuarios              @relation("UsuarioSubidor", fields: [subido_por], references: [id])
   tipo_documento             tipos_documentos?     @relation(fields: [tipo_documento_id], references: [id])
   creador                    usuarios              @relation("UsuarioCreador", fields: [usuario_creador], references: [id])
   registro_documental        registro_documental[]
+  versiones                  documento_versiones[]
+}
+
+model documento_versiones {
+  id                Int        @id @default(autoincrement())
+  documento_id      String     @db.Uuid
+  numero_version    Int
+  s3_path           String     @db.VarChar(500)
+  s3_bucket_name    String?    @db.VarChar(100)
+  tamano             BigInt?
+  hash_integridad   String?    @db.VarChar(255)
+  comentario        String?
+  fecha_creacion    DateTime   @default(now())
+  usuario_creador   Int
+  metadata          Json?
+  activa            Boolean    @default(true)
+  
+  documento         documentos @relation(fields: [documento_id], references: [id])
+  usuario           usuarios   @relation("UsuarioCreadorVersion", fields: [usuario_creador], references: [id])
+  
+  @@unique([documento_id, numero_version])
+  @@index([documento_id])
+  @@index([fecha_creacion])
 }
 
 model carpetas_auditoria {
