@@ -188,6 +188,7 @@ export async function documentosRoutes(app: FastifyInstance) {
                 descripcion: descripcion || null,
                 categoria: categoria || null,
                 fecha_ultima_actualizacion: new Date(),
+                tipo_documento_id: tipoDocumentoId,
               },
             });
 
